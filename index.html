@@ -1,9 +1,12 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>VISION SHIFT</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover"><title>VISION SHIFT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Chakra+Petch:wght@500;700&display=swap" media="print" onload="this.media='all'">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>
 [hidden]{display:none!important}
+html,body,button,canvas,#app{touch-action:none;-ms-touch-action:none}
+html{-webkit-text-size-adjust:100%;overscroll-behavior:none}
 /* Layout: full-bleed WebGL canvas; HUD pinned to safe-area corners; screens are centered glass panels over the live 3D world */
 :root{
   --ink:#07080d;          /* void behind everything */
@@ -258,7 +261,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
       <div class="eyebrow">HOW TO PLAY</div>
       <div class="h2">色を見ている間だけ、その色の法則が存在する</div>
       <div class="rules">
-        <div class="rule" style="--c:var(--red)"><b>赤 = 実体化</b>赤い足場・壁・敵が実体になる。外すと消えてすり抜ける。</div>
+        <div class="rule" style="--c:var(--red)"><b>赤 = 実体化</b>赤い足場・壁・ドローンが実体になる。外すと消えてすり抜ける（ドローンの弾も当たらない）。</div>
         <div class="rule" style="--c:var(--blue)"><b>青 = 流体</b>水が現れて泳げる。水流・間欠泉で一気に運ばれる。</div>
         <div class="rule" style="--c:var(--green)"><b>緑 = 生命</b>ツタを登り、葉を足場に、花で大ジャンプ。</div>
         <div class="rule" style="--c:var(--yellow)"><b>黄 = 電気</b>電線を高速滑走。エレベーターや発電機が動く。電気柵に注意。</div>
@@ -267,7 +270,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
         <kbd>WASD / 矢印</kbd><span>移動</span>
         <kbd>マウス</kbd><span>カメラ（画面クリックで固定）</span>
         <kbd>SPACE</kbd><span>ジャンプ（空中でもう1回）</span>
-        <kbd>SHIFT / 右クリック</kbd><span>ダッシュ（空中1回）・赤い敵に体当たり</span>
+        <kbd>SHIFT / 右クリック</kbd><span>ダッシュ（空中1回）</span>
         <kbd>1 2 3 4 / ホイール</kbd><span>メガネ切替（同じ番号 or Q で外す）</span>
         <kbd>R</kbd><span>チェックポイントへ戻る</span>
         <kbd>ESC</kbd><span>ポーズ</span>
@@ -2543,12 +2546,11 @@ const M = {
       C.adv(sp + fl); C.gv = v; C.gw = w;
     }
   },
-  // wide plaza sealed by a door that opens once its drones are down
+  // wide plaza patrolled by drones (they only shoot; there is nothing to fight)
   arena(len, wid, foes, o = {}) {
     const v = o.v ?? C.gv, top = C.y;
     K.P(0, len, v - wid / 2, v + wid / 2, top, o.h || C.h);
-    const door = K.DR(len - 4, len - 3, v - wid / 2, v + wid / 2, top, top + 8), ar = K.ARENA(door);
-    foes.forEach(([u, dv, dyy]) => K.EN(u, v + dv, top + dyy, ar));
+    foes.forEach(([u, dv, dyy]) => K.EN(u, v + dv, top + dyy));
     if (o.talk) K.TK(3, v, top, o.talk, 7);
     BOT.go(len - 6, v, { r: 1 }); BOT.go(len - 1, v, { r: 0.8, t: 20, n: o.n || 'arena' });
     if (o.cp) K.CP(3, v - wid / 2 + 3, top);
@@ -3032,7 +3034,7 @@ const STAGES = [
       M.airGate(0, 5, 8, 7, { talk: ['次は空中で切り替え。メガネを外して壁を抜けて…', '着地する前に、赤！'] });
       M.corner(3, 16, 'R', { cp: true });
       // D: the drone plaza — wide, with the exit door on the far side
-      M.pad(0, 6, 10); K.TK(-3, 0, C.y, ['赤い敵！ 赤メガネの時だけ“実体”になる。', 'ダッシュ[SHIFT]で体当たり、上から踏んでもOK！', '赤メガネ中は敵の弾も当たるから気をつけて。'], 6);
+      M.pad(0, 6, 10); K.TK(-3, 0, C.y, ['赤いドローン！ 赤メガネの時だけ“実体”になるよ。', '赤メガネ中は体当たりも弾も当たるから、よけながら広場を抜けよう！'], 6);
       M.arena(26, 24, [[8, -7, 2.6], [13, 7, 3], [19, -2, 3.4], [21, 8, 2.8]]);
       // E: platforms sliding sideways
       M.shuttle(0, 3, { amp: 4.5, cp: true, n: 'shuttle' });
@@ -3042,9 +3044,9 @@ const STAGES = [
       M.drop(0);
       K.TK(-26, 0, C.y - 9, ['戻るには赤い階段。もう一度、赤！'], 7);
       M.pad(3, 12, 12, { cp: true, cpv: -3 });
-      // G: back on course, the rhythm corridor snakes left and right
-      M.corner(3, 14, 'L', { talk: ['赤い床と赤い壁が交互に並んでる…。', '跳んで、外して、着地前に赤。リズムよく！'] });
-      M.rhythm(0, 5, { zig: 2.5, firstWall: false });
+      // G: back on course, stepping stones snake left and right
+      M.corner(3, 14, 'L', { talk: ['左右にずれた赤い飛び石。落ち着いて跳ぼう！'] });
+      M.stones(0, 5, { zig: 2.5 });
       M.pad(3, 14, 14, { cp: true, cpv: 4 });
       // H: lifts under drone fire, drifting off to the right
       K.TK(-5, 0, C.y, ['上下に動く赤いリフト。敵の弾にも気をつけて！'], 7);
@@ -3099,7 +3101,7 @@ const STAGES = [
       M.corner(3, 16, 'L', {});
       // J: flooded plaza patrolled by drones
       M.pad(0, 4, 10);
-      M.arena(28, 26, [[8, -8, 2.6], [14, 8, 3], [20, -3, 3.4], [24, 9, 2.8]], { talk: ['赤いドローン！ 赤メガネで体当たりして倒そう。'] });
+      M.arena(28, 26, [[8, -8, 2.6], [14, 8, 3], [20, -3, 3.4], [24, 9, 2.8]], { talk: ['赤いドローンの広場…。弾をよけて向こう側へ！'] });
       // K: pools under fire, a red perch, then a canal turning left
       M.pools(5, { zig: 2.5, rise: 1, first: 0 });
       K.EN(-12, 6, C.y + 3); K.EN(-26, -6, C.y + 3);
@@ -3181,7 +3183,7 @@ const STAGES = [
       M.bloom(5, { pv: 6, len: 12, wid: 12, cp: true });
       // I: canopy clearing guarded by drones, then more drifting leaves
       M.pad(0, 4, 10, { v: 0 });
-      M.arena(26, 24, [[8, -7, 2.6], [13, 7, 3], [19, -2, 3.4], [22, 8, 2.8]], { talk: ['木の上の広場…ドローンが道をふさいでる！'] });
+      M.arena(26, 24, [[8, -7, 2.6], [13, 7, 3], [19, -2, 3.4], [22, 8, 2.8]], { talk: ['木の上の広場…ドローンが見張ってる。弾に気をつけて！'] });
       M.shuttle(2, 3, { amp: 4.5, cp: true, speed: 1.6 });
       // I2: a detour to the right through hanging ponds and back
       M.corner(3, 16, 'R', { talk: ['葉の上に水がたまってる…。青で飛び込んで、水面からジャンプ！'] });
@@ -3239,7 +3241,7 @@ const STAGES = [
       M.railHop(58, 6, 4, { cp: true, n: 'hop1' });
       // I: drone plaza
       M.pad(0, 4, 10);
-      M.arena(26, 24, [[8, -7, 2.6], [13, 7, 3], [19, -2, 3.4], [22, 8, 2.8]], { talk: ['ドローンの群れ！ 赤で体当たり！'] });
+      M.arena(26, 24, [[8, -7, 2.6], [13, 7, 3], [19, -2, 3.4], [22, 8, 2.8]], { talk: ['ドローンの群れ！ 赤メガネの時は弾に当たるよ、気をつけて！'] });
       // J: up a lift, colours in a zig-zag, a canal turning back ahead
       M.lift(14, { cp: true });
       M.alt([0, 2, 0, 2], { zig: 2.5, dy: 0.5 });
@@ -3285,7 +3287,7 @@ const STAGES = [
       // B: memory of the lab
       K.TK(-4, 0, C.y, ['研究所の記憶…。壁を抜けて、着地前に赤！'], 8);
       M.airGate(0, 5, 8, 7, {});
-      M.rhythm(0, 4, { zig: 2.5 });
+      M.stones(0, 4, { zig: 2.5 });
       M.pad(3, 12, 14, { cp: true, cpv: 4 });
       M.shuttle(0, 3, { amp: 4.5, cp: true });
       // C: memory of the drowned city
@@ -3324,7 +3326,7 @@ const STAGES = [
       M.corner(3, 16, 'L', {});
       M.climb(10, {});
       M.bloom(6, { pv: 5, cp: true });
-      M.rhythm(0, 3, { zig: 2 });
+      M.stones(0, 3, { zig: 2 });
       M.pad(3, 14, 12, { cp: true });
       M.pad(3, 12, 14);
       // G: the rainbow bridge
@@ -3462,7 +3464,7 @@ function reachGoal() {
 function showClear() {
   const st = STAGES[G.stage];
   $('#clearTitle').textContent = st.name;
-  $('#clearRows').innerHTML = `<span>タイム</span><b>${fmtTime(G.stageTime)}</b><span>シャード</span><b>${G.shards} / ${G.total}</b><span>撃破</span><b>${G.kills}</b><span>ミス</span><b>${G.deaths}</b>`;
+  $('#clearRows').innerHTML = `<span>タイム</span><b>${fmtTime(G.stageTime)}</b><span>シャード</span><b>${G.shards} / ${G.total}</b><span>ミス</span><b>${G.deaths}</b>`;
   $('#clearRank').textContent = G.result.rank;
   $('#bNext').hidden = G.stage >= 4;
   $('#clear').hidden = false; $('#hud').hidden = true;
@@ -3521,11 +3523,8 @@ function updateEnemies(dt) {
         W.shots.push({ m, vel: dir.multiplyScalar(10), life: 5 }); if (red) SFX.shoot();
       }
     }
-    if (red && d < 1.7 && G.state === 'play') {
-      const stomp = PL.vel.y < 0 && PL.pos.y > e.pos.y + 0.2;
-      if (PL.dashT > 0 || stomp || PL.rail) { killEnemy(e); if (stomp) { PL.vel.y = 15; PL.launch = true; } }
-      else hurt(PL.pos.clone().sub(e.pos).setY(0).normalize());
-    }
+    // no combat: drones can't be destroyed — touching one while it is solid (red) just hurts
+    if (red && d < 1.7 && G.state === 'play') hurt(PL.pos.clone().sub(e.pos).setY(0).normalize());
   }
   for (let i = W.shots.length - 1; i >= 0; i--) {
     const s = W.shots[i]; s.life -= dt; s.m.position.addScaledVector(s.vel, dt);
@@ -3789,6 +3788,14 @@ requestAnimationFrame(frame);
 
 
 }
+(function noZoom(){
+  // phones: never let double-taps or pinches zoom the page
+  var o = { passive: false };
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); }, o); });
+  document.addEventListener('dblclick', function(e){ e.preventDefault(); }, o);
+  var last = 0; document.addEventListener('touchend', function(e){ var n = Date.now(); if (n - last < 350) e.preventDefault(); last = n; }, o);
+  document.addEventListener('touchmove', function(e){ if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, o);
+})();
 (function boot(){
   function fail(m){ var l=document.getElementById('loading'); if(!l){ l=document.createElement('div'); l.id='loading'; document.body.appendChild(l); } l.className='err'; l.textContent=m; }
   window.addEventListener('error', function(e){ if (document.getElementById('loading')) fail('起動中にエラーが発生しました: '+(e.message||e)); });
