@@ -42,12 +42,18 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 #pauseBtn{position:relative;z-index:7;touch-action:none;pointer-events:auto;width:38px;height:38px;border-radius:50%;background:var(--glass);border:1px solid var(--line);font:700 13px var(--f-num);display:grid;place-items:center}
 
 #dialog{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translate(-50%,-8px);opacity:0;transition:opacity .25s,transform .25s;
-  display:flex;gap:12px;align-items:center;max-width:min(560px,calc(100vw - 32px));padding:10px 16px 10px 10px;border-radius:16px;
+  display:flex;gap:12px;align-items:center;box-sizing:border-box;width:min(600px,calc(100vw - 24px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));padding:10px 16px 10px 10px;border-radius:16px;
   background:linear-gradient(120deg,rgba(14,16,28,.82),rgba(20,22,38,.7));border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 #dialog.on{opacity:1;transform:translate(-50%,0)}
 .iris-ic{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.06)}
 .iris-name{font:700 10px/1 var(--f-num);letter-spacing:.3em;color:var(--dim);margin-bottom:5px}
-#dlgText{font:700 clamp(13px,1.7vw,16px)/1.5 var(--f-body);min-height:1.5em}
+#dlgText{font:700 clamp(13px,1.7vw,16px)/1.5 var(--f-body);min-height:1.5em;overflow-wrap:anywhere}
+#dialog>div:last-child{flex:1;min-width:0}
+/* phones: a wide, short strip so the guide never covers the play area */
+.touch #dialog{width:min(720px,calc(100vw - 24px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));gap:8px;padding:6px 12px 6px 6px;border-radius:12px}
+.touch .iris-ic{width:30px;height:30px;border-radius:8px}.touch .iris-ic svg{width:26px;height:16px}
+.touch .iris-name{font-size:8px;margin-bottom:2px}
+.touch #dlgText{font-size:12.5px;line-height:1.35}
 
 #prompt{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);font:900 clamp(26px,5vw,54px)/1 var(--f-display);letter-spacing:.04em;opacity:0;
   text-shadow:0 0 24px currentColor;transition:opacity .12s;white-space:nowrap}
@@ -169,8 +175,6 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 
 #loading{position:absolute;inset:0;display:grid;place-items:center;background:var(--ink);font:700 12px var(--f-num);letter-spacing:.4em;color:var(--dim);z-index:50}
 #loading.err{letter-spacing:.05em;padding:24px;text-align:center;line-height:1.7}
-#rotate{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);font:700 12px var(--f-body);color:var(--dim);background:var(--glass);padding:8px 14px;border-radius:999px;display:none;white-space:nowrap}
-@media (orientation:portrait){.touch #rotate{display:block}}
 @media (max-width:640px){
   .hud-top{padding-left:calc(env(safe-area-inset-left,0px) + 12px);padding-right:calc(env(safe-area-inset-right,0px) + 12px)}
   .stage-tag{display:none}.stage-name{font-size:13px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:36vw}
@@ -181,7 +185,6 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
   .touch #tJump{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
   .touch #tDash{right:calc(env(safe-area-inset-right,0px) + 34px);bottom:calc(env(safe-area-inset-bottom,0px) + 192px)}
   .touch .stick-hint{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
-  .touch #rotate{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 120px)}
 }
 @media (prefers-reduced-motion:reduce){.logo .shift::before,.logo .shift::after,#prompt.on,.pip.next{animation:none}}
 </style>
@@ -221,7 +224,6 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
       <div id="stick"><i></i></div>
       <button class="tbtn" id="tDash" aria-label="Dash">DASH</button>
       <button class="tbtn" id="tJump" aria-label="Jump">JUMP</button>
-      <div id="rotate">横向きにすると遊びやすいよ</div>
     </div>
     <div id="lensBar">
       <button class="lens" data-l="0" style="--c:var(--red)" aria-label="赤メガネ"><i class="ring"></i><i class="glass"></i><span class="k">1</span><span class="lbl">実体化</span></button>
@@ -995,31 +997,66 @@ const B = {
   },
   rail(pts) {
     const P = pts.map(p => V3(...p));
-    const path = new THREE.CurvePath(); for (let i = 0; i < P.length - 1; i++) path.add(new THREE.LineCurve3(P[i], P[i + 1]));
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(path, P.length * 40, 0.13, 8), LM.glow[3]); W.g.add(tube);
-    const halo = new THREE.Mesh(new THREE.TubeGeometry(path, P.length * 40, 0.34, 8), LM.halo[3]); halo.renderOrder = 6; W.g.add(halo);
     const segs = []; let total = 0;
     for (let i = 0; i < P.length - 1; i++) { const L = P[i].distanceTo(P[i + 1]); segs.push({ a: P[i], b: P[i + 1], len: L, s0: total, dir: P[i + 1].clone().sub(P[i]).normalize() }); total += L; }
-    // pylons
-    const n = Math.floor(total / 9);
-    for (let i = 1; i < n; i++) { const p = railPoint({ segs, total }, i / n * total); const py = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 6), W.mats.dark); py.position.set(p.x, p.y - 0.75, p.z); W.g.add(py); const ins = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.06, 6, 16), LM.glow[3]); ins.position.set(p.x, p.y, p.z); ins.rotation.x = Math.PI / 2; W.g.add(ins); }
-    W.rails.push({ segs, total, pts: P });
+    const M = W.mats; if (!M.rail) { M.rail = ELEC.copper(); M.sleeper = lensify(new THREE.MeshStandardMaterial({ color: col('#23242f'), metalness: 0.7, roughness: 0.5 }), 3, 'solid'); M.ceramic = ELEC.ceramic(); W.dispose.push(M.rail, M.sleeper, M.ceramic); }
+    // twin copper conductors, one each side of the riding line (mitred at the bends)
+    const gap = 0.45, hs = (d) => V3(d.z, 0, -d.x).normalize();
+    const sideAt = (i) => { const d0 = segs[Math.max(0, i - 1)].dir, d1 = segs[Math.min(segs.length - 1, i)].dir, s0 = hs(d0), s1 = hs(d1), m = s0.clone().add(s1).normalize(); return m.multiplyScalar(1 / Math.max(0.5, m.dot(s1))); };
+    [-1, 1].forEach(sg => {
+      const path = new THREE.CurvePath(); const Q = P.map((p, i) => p.clone().addScaledVector(sideAt(i), sg * gap));
+      for (let i = 0; i < Q.length - 1; i++) path.add(new THREE.LineCurve3(Q[i], Q[i + 1]));
+      const m = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(8, Math.round(total * 1.5)), 0.045, 8), M.rail); m.renderOrder = 2; W.g.add(m);
+    });
+    // faint ionised channel along the riding line, with current packets rushing ahead (reads the route from afar)
+    { const path = new THREE.CurvePath(); for (let i = 0; i < P.length - 1; i++) path.add(new THREE.LineCurve3(P[i], P[i + 1]));
+      const ch = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(8, Math.round(total * 1.5)), 0.12, 8), ELEC.corona(total, 24)); ch.renderOrder = 6; W.dispose.push(ch.material); W.g.add(ch); }
+    // sleepers under the conductors
+    const nS = Math.floor(total / 1.2), sl = new THREE.InstancedMesh(new THREE.BoxGeometry(1.25, 0.07, 0.16), M.sleeper, nS), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    for (let i = 0; i < nS; i++) { const s = (i + 0.5) * 1.2, p = railPoint({ segs, total }, s), d = railDir({ segs, total }, s); q.setFromAxisAngle(V3(0, 1, 0), Math.atan2(d.x, d.z)); m4.compose(p.add(V3(0, -0.07, 0)), q, V3(1, 1, 1)); sl.setMatrixAt(i, m4); }
+    sl.renderOrder = 2; W.g.add(sl);
+    // pylons with ceramic insulators
+    const n = Math.floor(total / 9), insG = ELEC.insulatorGeo(3, 0.12, 0.34);
+    for (let i = 1; i < n; i++) { const p = railPoint({ segs, total }, i / n * total); const py = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 6), W.mats.dark); py.position.set(p.x, p.y - 0.95, p.z); W.g.add(py); const ins = new THREE.Mesh(insG, M.ceramic); ins.position.set(p.x, p.y - 0.45, p.z); W.g.add(ins); }
+    const R = { segs, total, pts: P, gap, arcs: [] };
+    for (let k = 0, na = Math.max(4, Math.round(total / 5)); k < na; k++) R.arcs.push({ s: k / na * total, re: 0, pts: null });
+    W.rails.push(R); ELEC.addRail(R);
   },
-  // electric fence spanning x0..x1 at z (alongZ: spanning z0..z1 at x)
+  // electric fence spanning x0..x1 at z (alongZ: spanning z0..z1 at x): open-air lightning between electrodes on two posts
   fence(x0, x1, y0, y1, z, alongZ = false) {
     const g = new THREE.Group(); W.g.add(g);
     const c = (x0 + x1) / 2, L = x1 - x0;
     g.position.set(alongZ ? z : c, 0, alongZ ? c : z); if (alongZ) g.rotation.y = Math.PI / 2;
-    [-L / 2, L / 2].forEach(x => { const p = new THREE.Mesh(new THREE.BoxGeometry(0.35, y1 - y0 + 0.4, 0.35), W.mats.dark); p.position.set(x, (y0 + y1) / 2 + 0.2, 0); p.castShadow = true; g.add(p); });
-    for (let k = 0; k < 5; k++) { const y = y0 + 0.25 + k * (y1 - y0 - 0.4) / 4; const b = new THREE.Mesh(new THREE.BoxGeometry(L, 0.07, 0.07), LM.glow[3]); b.position.set(0, y, 0); g.add(b); }
-    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(L, y1 - y0), LM.glowSoft[3]); sheet.material = lensify(new THREE.MeshBasicMaterial({ color: LENS_COL[3].clone().multiplyScalar(0.5), side: THREE.DoubleSide, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }), 3, 'glow');
-    W.dispose.push(sheet.material); sheet.position.set(0, (y0 + y1) / 2, 0); g.add(sheet);
+    const M = W.mats; if (!M.alu) { M.alu = ELEC.alu(); M.ceramic2 = ELEC.ceramic(); W.dispose.push(M.alu, M.ceramic2); }
+    const levels = []; for (let k = 0; k < 4; k++) levels.push(y0 + 0.35 + k * (y1 - y0 - 0.6) / 3);
+    [-L / 2, L / 2].forEach(x => {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, y1 - y0 + 0.5, 0.3), W.mats.dark); p.position.set(x, (y0 + y1) / 2 + 0.25, 0); p.castShadow = true; g.add(p);
+      levels.forEach(y => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), M.alu); e.position.set(x - Math.sign(x) * 0.26, y, 0); g.add(e);
+        const ins = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.18, 10), M.ceramic2); ins.rotation.z = Math.PI / 2; ins.position.set(x - Math.sign(x) * 0.12, y, 0); g.add(ins); });
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), M.alu); cap.position.set(x, y1 + 0.5, 0); g.add(cap);
+    });
+    // faint ionised track between the electrodes (a ghost of the fence when yellow is off)
+    levels.forEach(y => { const b = new THREE.Mesh(new THREE.BoxGeometry(L - 0.5, 0.025, 0.025), LM.glowSoft[3]); b.position.set(0, y, 0); g.add(b); });
+    const wp = (x) => alongZ ? V3(z, 0, c + x) : V3(c + x, 0, z);
+    ELEC.addFence({ a: wp(-L / 2 + 0.36), b: wp(L / 2 - 0.36), levels, n: alongZ ? V3(1, 0, 0) : V3(0, 0, 1), mid: wp(0).setY((y0 + y1) / 2), re: 0, gens: [] });
     W.fences.push(alongZ ? { min: V3(z - 0.3, y0, x0), max: V3(z + 0.3, y1, x1), warned: false, ax: 'x' } : { min: V3(x0, y0, z - 0.3), max: V3(x1, y1, z + 0.3), warned: false, ax: 'z' });
   },
   elevator(x, z, w, d, y0, y1) {
     const s = addBox(V3(x - w / 2, y0 - 0.6, z - d / 2), V3(x + w / 2, y0, z + d / 2), -1, { kind: 'elev' });
-    const cab = []; [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { const c = new THREE.Mesh(new THREE.BoxGeometry(0.08, y1 - y0 + 3, 0.08), LM.glow[3]); c.position.set(x + a * (w / 2 - 0.1), (y0 + y1) / 2 + 1, z + b * (d / 2 - 0.1)); W.g.add(c); });
-    const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.8, 4), LM.glow[3]); arrow.position.set(0, 1.4, 0); s.mesh.add(arrow); W.spin.push({ o: arrow, s: 1.5 });
+    const M = W.mats; if (!M.alu) { M.alu = ELEC.alu(); M.ceramic2 = ELEC.ceramic(); W.dispose.push(M.alu, M.ceramic2); }
+    if (!M.glass) { M.glass = ELEC.glass(); W.dispose.push(M.glass); }
+    // guide cables: stranded conductor with corona discharge and current packets climbing it
+    const H = y1 - y0 + 3, cabs = [], insG = ELEC.insulatorGeo(4, 0.14, 0.5);
+    [[-1, -1], [1, 1]].forEach(([a, b]) => {
+      const bx = x + a * (w / 2 + 0.15), bz = z + b * (d / 2 + 0.15), bot = V3(bx, y0 - 1, bz), top = V3(bx, y0 - 1 + H, bz);
+      const curve = new THREE.LineCurve3(bot, top), segs = Math.max(8, Math.round(H * 2));
+      W.g.add(new THREE.Mesh(ELEC.cable(curve, segs, 0.06, 2.4), M.alu));
+      const cor = new THREE.Mesh(new THREE.TubeGeometry(curve, segs, 0.16, 12, false), ELEC.corona(H, 8)); cor.renderOrder = 6; W.dispose.push(cor.material); W.g.add(cor);
+      const ins = new THREE.Mesh(insG, M.glass); ins.position.set(bx, top.y, bz); W.g.add(ins);
+      const cap = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 10, 24), M.alu); cap.rotation.x = Math.PI / 2; cap.position.set(bx, top.y + 0.55, bz); W.g.add(cap);
+      cabs.push({ bot, top });
+    });
+    ELEC.addCoil({ at: V3(x, (y0 + y1) / 2, z), brush: 6, pick: () => { const c = cabs[(Math.random() * cabs.length) | 0]; return c.bot.clone().lerp(c.top, Math.random()); } });
     W.elevators.push({ s, y0, y1, y: y0 }); return s;
   },
   door(x0, y0, z0, x1, y1, z1) {
@@ -1031,14 +1068,24 @@ const B = {
   },
   gen(x, top, z, door) {
     const g = new THREE.Group(); g.position.set(x, top, z); W.g.add(g);
+    const M = W.mats; if (!M.alu) { M.alu = ELEC.alu(); M.ceramic2 = ELEC.ceramic(); W.dispose.push(M.alu, M.ceramic2); }
+    if (!M.glass) { M.glass = ELEC.glass(); W.dispose.push(M.glass); }
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 1, 16), W.mats.dark); base.position.y = 0.5; base.castShadow = true; g.add(base);
-    const coil = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.12, 8, 24), LM.glow[3]); coil.position.y = 1.6; g.add(coil);
-    const coil2 = coil.clone(); coil2.position.y = 2.2; coil2.scale.setScalar(0.7); g.add(coil2);
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 0), LM.solid[3]); core.position.y = 1.9; g.add(core);
+    // wound coil of stranded cable around the charge core, with a corona sheath along the winding
+    const hel = []; for (let i = 0; i <= 120; i++) { const u = i / 120, a = u * Math.PI * 2 * 4.5; hel.push(V3(Math.cos(a) * 0.72, 1.1 + u * 1.3, Math.sin(a) * 0.72)); }
+    const curve = new THREE.CatmullRomCurve3(hel), L = curve.getLength();
+    const coil = new THREE.Mesh(ELEC.cable(curve, 180, 0.05, 1.6), M.alu); g.add(coil);
+    const cor = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, 0.14, 10, false), ELEC.corona(L, 11)); cor.renderOrder = 6; W.dispose.push(cor.material); g.add(cor);
+    const post = new THREE.Mesh(ELEC.insulatorGeo(5, 0.18, 0.7), M.glass); post.position.y = 2.45; g.add(post);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.11, 12, 32), M.alu); ring.rotation.x = Math.PI / 2; ring.position.y = 3.3; g.add(ring);
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), LM.solid[3]); core.position.y = 1.75; g.add(core);
     W.spin.push({ o: core, s: 2 });
     addBox(V3(x - 1, top, z - 1), V3(x + 1, top + 1, z + 1), -1, { noAdd: true, invisible: true });
-    const gen = { pos: V3(x, top + 1.5, z), door, charge: 0, done: false, g, coil, coil2 };
+    const gen = { pos: V3(x, top + 1.5, z), door, charge: 0, done: false, g, cor };
     if (door) door.need = (door.need || 0) + 1;
+    ELEC.addCoil({ at: V3(x, top + 1.8, z), brush: 5, core: V3(x, top + 1.75, z), re: 0, pts: null,
+      pick: () => hel[(Math.random() * hel.length) | 0].clone().add(g.position),
+      charging: () => !gen.done && G.lens === 3 && gen.pos.distanceTo(PL.pos) < 9 && G.state === 'play' });
     gen.tag = makeTag(); W.gens.push(gen); return gen;
   },
   enemy(x, y, z, arena) {
@@ -1420,6 +1467,181 @@ const BLOOM = (() => {
     emissiveIntensity: 0.1, roughness: 0.78, metalness: 0, envMapIntensity: 0.3 }), 2, 'solid');
   const stemMat = lensify(new THREE.MeshStandardMaterial({ color: col('#4f8a3c'), emissive: col('#1a9c48'), emissiveIntensity: 0.08, roughness: 0.8, envMapIntensity: 0.3 }), 2, 'solid');
   return { geo, mat, stemMat, W0, H0 };
+})();
+
+/* ================= ELECTRICITY (yellow): real-looking arcs, corona and hardware =================
+   One shared ribbon mesh draws every lightning bolt and spark of the stage in a single call.
+   - rideable wires  : twin copper rails with arcs racing between them   (B.rail)
+   - electric fences : open-air lightning re-striking between electrodes (B.fence)
+   - lifts / gens    : stranded cable with corona discharge and current packets (B.elevator / B.gen) */
+const ELEC = (() => {
+  const U = { uCore: { value: new THREE.Color(1.0, 0.93, 0.72).multiplyScalar(3.4) }, uGlow: { value: new THREE.Color(1.0, 0.68, 0.1).multiplyScalar(1.5) }, uOn: LU[3].on, uTime: GU.time };
+  const NOISE = `
+    float eh3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+    float evn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(eh3(i), eh3(i + vec3(1,0,0)), f.x), mix(eh3(i + vec3(0,1,0)), eh3(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(eh3(i + vec3(0,0,1)), eh3(i + vec3(1,0,1)), f.x), mix(eh3(i + vec3(0,1,1)), eh3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+    float efbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * evn(p); p *= 2.03; a *= 0.5; } return s; }`;
+
+  /* camera-facing lightning ribbons */
+  const cap = 9000, p0 = new Float32Array(cap * 12), p1 = new Float32Array(cap * 12), cw = new Float32Array(cap * 16);
+  const geo = new THREE.BufferGeometry();
+  { const corner = new Float32Array(cap * 8), idx = new Uint32Array(cap * 6);
+    for (let i = 0; i < cap; i++) { corner.set([0, -1, 0, 1, 1, -1, 1, 1], i * 8); idx.set([i * 4, i * 4 + 2, i * 4 + 1, i * 4 + 1, i * 4 + 2, i * 4 + 3], i * 6); }
+    geo.setAttribute('position', new THREE.BufferAttribute(p0, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('aP1', new THREE.BufferAttribute(p1, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('aC', new THREE.BufferAttribute(corner, 2));
+    geo.setAttribute('aWI', new THREE.BufferAttribute(cw, 4).setUsage(THREE.DynamicDrawUsage));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.setDrawRange(0, 0); }
+  const boltMat = new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `attribute vec3 aP1; attribute vec2 aC; attribute vec4 aWI; varying float vS; varying float vI; varying float vHot;
+      void main(){ vec3 a = position, b = aP1; vec3 d = b - a; float L = length(d); d = L > 1e-5 ? d / L : vec3(0.0, 1.0, 0.0);
+        vec3 p = mix(a, b, aC.x); vec3 side = cross(d, normalize(cameraPosition - p)); float sl = length(side); side = sl > 1e-4 ? side / sl : vec3(1.0, 0.0, 0.0);
+        p += side * aC.y * aWI.x + d * (aC.x * 2.0 - 1.0) * aWI.x * 0.35;
+        vS = aC.y; vI = aWI.y; vHot = aWI.z; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
+    fragmentShader: `uniform vec3 uCore, uGlow; uniform float uOn; varying float vS; varying float vI; varying float vHot;
+      void main(){ float d = abs(vS); float core = exp(-d * d * mix(160.0, 70.0, vHot)), glow = exp(-d * d * 7.0) * 0.16 + exp(-d * 12.0) * 0.05;
+        gl_FragColor = vec4((uCore * core + uGlow * glow) * vI * uOn, 1.0); }`,
+  });
+  const mesh = new THREE.Mesh(geo, boltMat); mesh.frustumCulled = false; mesh.renderOrder = 9; scene.add(mesh);
+  let n = 0;
+  function add(pts, w, i, hot = 0) {
+    for (let k = 0; k < pts.length - 1 && n < cap; k++) {
+      const a = pts[k], b = pts[k + 1], o = n * 12, c = n * 16;
+      for (let v = 0; v < 4; v++) { p0[o + v * 3] = a.x; p0[o + v * 3 + 1] = a.y; p0[o + v * 3 + 2] = a.z; p1[o + v * 3] = b.x; p1[o + v * 3 + 1] = b.y; p1[o + v * 3 + 2] = b.z; cw[c + v * 4] = w; cw[c + v * 4 + 1] = i; cw[c + v * 4 + 2] = hot; }
+      n++;
+    }
+  }
+  const _t = V3(), _r = V3();
+  function jag(a, b, rough = 0.2, depth = 4) {
+    let pts = [a.clone(), b.clone()];
+    for (let d = 0; d < depth; d++) {
+      const np = [pts[0]];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = pts[i], q = pts[i + 1]; _t.subVectors(q, p); const L = _t.length(); _t.normalize();
+        _r.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).cross(_t).normalize();
+        np.push(p.clone().lerp(q, 0.5 + rand(-0.1, 0.1)).addScaledVector(_r, rand(-1, 1) * rough * L), q);
+      }
+      pts = np;
+    }
+    return pts;
+  }
+  function bolt(a, b, o = {}) {
+    const pts = jag(a, b, o.rough ?? 0.22, o.depth ?? 4);
+    if (o.bulge) { const m = pts.length - 1; pts.forEach((p, i) => p.addScaledVector(o.bulge, Math.sin(i / m * Math.PI))); }
+    add(pts, o.w ?? 0.08, o.i ?? 1, o.hot ?? 0.3);
+    if (o.branch && Math.random() < o.branch) {
+      const i0 = (Math.random() * (pts.length - 2)) | 0, s = pts[i0];
+      const dir = pts[i0 + 1].clone().sub(s).normalize().add(V3(rand(-0.8, 0.8), rand(-0.8, 0.8), rand(-0.8, 0.8))).normalize();
+      add(jag(s, s.clone().addScaledVector(dir, a.distanceTo(b) * rand(0.15, 0.35)), 0.3, 3), (o.w ?? 0.08) * 0.6, (o.i ?? 1) * 0.5, 0);
+    }
+    return pts;
+  }
+  /* sparks: hot droplets drawn as short streaks */
+  const SC = 500, sp = new Float32Array(SC * 3), sv = new Float32Array(SC * 3), sl = new Float32Array(SC); let si = 0;
+  function sparks(p, k = 4, s = 3) { for (let j = 0; j < k; j++) { const i = si; si = (si + 1) % SC; sp[i * 3] = p.x; sp[i * 3 + 1] = p.y; sp[i * 3 + 2] = p.z; sv[i * 3] = rand(-s, s); sv[i * 3 + 1] = rand(-0.2, 1.3) * s; sv[i * 3 + 2] = rand(-s, s); sl[i] = rand(0.2, 0.6); } }
+  const _a = V3(), _b = V3();
+  function stepSparks(dt) {
+    for (let i = 0; i < SC; i++) {
+      if (sl[i] <= 0) continue; sl[i] -= dt; sv[i * 3 + 1] -= 14 * dt;
+      for (let k = 0; k < 3; k++) { sv[i * 3 + k] *= 1 - 1.2 * dt; sp[i * 3 + k] += sv[i * 3 + k] * dt; }
+      _a.fromArray(sp, i * 3); _b.fromArray(sv, i * 3);
+      add([_a.clone(), _a.clone().addScaledVector(_b, -0.03)], 0.02, 1.4 * Math.min(1, sl[i] * 2.5), 0.8);
+    }
+  }
+
+  /* materials */
+  const copper = () => lensify(new THREE.MeshStandardMaterial({ color: col('#c9774a'), metalness: 1.0, roughness: 0.32, emissive: col('#ff9a3a'), emissiveIntensity: 0.32, envMapIntensity: 1.1 }), 3, 'solid');
+  const alu = () => new THREE.MeshStandardMaterial({ color: col('#b9bcc6'), metalness: 1.0, roughness: 0.36, envMapIntensity: 1.0 });
+  const ceramic = () => new THREE.MeshStandardMaterial({ color: col('#d9d4c7'), metalness: 0, roughness: 0.28 });
+  const glass = () => new THREE.MeshStandardMaterial({ color: col('#5d8f86'), metalness: 0.1, roughness: 0.08, transparent: true, opacity: 0.82 });
+  // corona sheath: wispy discharge + current packets travelling along uv.x (tube) — only while yellow is on
+  const corona = (len, speed = 11) => new THREE.ShaderMaterial({
+    uniforms: Object.assign({ uLen: { value: len }, uSpeed: { value: speed } }, U), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: 'varying vec2 vUv; varying vec3 vW; varying vec3 vN; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: 'uniform float uTime, uLen, uOn, uSpeed; uniform vec3 uCore, uGlow; varying vec2 vUv; varying vec3 vW; varying vec3 vN;\n' + NOISE + `
+      void main(){ float c = abs(dot(normalize(vN), normalize(cameraPosition - vW)));
+        float nz = efbm(vW * 6.5 + vec3(uTime * 0.6, uTime * 2.2, -uTime * 0.8));
+        float wisp = smoothstep(0.5, 0.9, nz) * pow(c, 1.2);
+        float s = vUv.x * uLen; float pk = exp(-pow(mod(s - uTime * uSpeed, 7.0) - 3.5, 2.0) * 3.0) + 0.7 * exp(-pow(mod(s * 1.3 - uTime * uSpeed * 0.65 + 2.0, 9.0) - 4.5, 2.0) * 5.0);
+        vec3 col = mix(uGlow, vec3(0.62, 0.55, 1.2), 0.45) * (wisp * 0.45 + 0.05 * c) + uGlow * pk * pow(c, 3.0) * 0.45;
+        gl_FragColor = vec4(col * uOn, 1.0); }`,
+  });
+  function insulatorGeo(k, r, h) { const pts = []; for (let i = 0; i <= k; i++) { const y = i * h / k; pts.push(new THREE.Vector2(r * 0.35, y), new THREE.Vector2(r, y + h / k * 0.25), new THREE.Vector2(r * 0.35, y + h / k * 0.55)); } return new THREE.LatheGeometry(pts, 16); }
+  function merge(geos) {
+    let nv = 0, ni = 0; geos.forEach(g => { nv += g.attributes.position.count; ni += g.index.count; });
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), idx = new Uint32Array(ni); let ov = 0, oi = 0;
+    geos.forEach(g => { pos.set(g.attributes.position.array, ov * 3); nor.set(g.attributes.normal.array, ov * 3); uv.set(g.attributes.uv.array, ov * 2);
+      const I = g.index.array; for (let k = 0; k < I.length; k++) idx[oi + k] = I[k] + ov; ov += g.attributes.position.count; oi += I.length; g.dispose(); });
+    const m = new THREE.BufferGeometry(); m.setAttribute('position', new THREE.BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); m.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); m.setIndex(new THREE.BufferAttribute(idx, 1));
+    return m;
+  }
+  // stranded cable (core + 6 twisted strands) along a curve, merged into one geometry
+  function cable(curve, segs, rad, twist = 3.2) {
+    const L = curve.getLength(), geos = [new THREE.TubeGeometry(curve, segs, rad * 0.7, 6, false)];
+    const fr = curve.computeFrenetFrames(segs, false);
+    for (let k = 0; k < 6; k++) {
+      const pts = [];
+      for (let i = 0; i <= segs; i++) { const u = i / segs, th = k / 6 * Math.PI * 2 + u * L * twist; pts.push(curve.getPointAt(u).addScaledVector(fr.normals[i], Math.cos(th) * rad).addScaledVector(fr.binormals[i], Math.sin(th) * rad)); }
+      geos.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), segs * 2, rad * 0.5, 5, false));
+    }
+    return merge(geos);
+  }
+
+  /* per-stage state */
+  let rails = [], fences = [], coils = [];
+  const near = (p, r) => camera.position.distanceToSquared(p) < r * r;
+  function update(dt) {
+    n = 0;
+    const on = LU[3].on.value > 0.5;
+    if (on) {
+      // twin rails: arcs race along between the two conductors
+      for (const R of rails) {
+        R.arcs.forEach(a => {
+          a.s = (a.s + dt * 9) % R.total;
+          const c = railPoint(R, a.s); if (!near(c, 80)) { a.pts = null; return; }
+          const d = railDir(R, a.s), side = V3(d.z, 0, -d.x).normalize();
+          const q0 = c.clone().addScaledVector(side, -R.gap).add(V3(0, 0.03, 0)), q1 = c.clone().addScaledVector(side, R.gap).add(V3(0, 0.03, 0));
+          a.re -= dt;
+          if (a.re <= 0 || !a.pts) {
+            a.re = rand(0.025, 0.05); a.pts = jag(q0, q1, 0.25, 4); const m = a.pts.length - 1;
+            a.pts.forEach((p, i) => { const s = Math.sin(i / m * Math.PI); p.y += s * 0.3; p.addScaledVector(d, -s * 0.18); });
+            if (Math.random() < 0.3) sparks(Math.random() < 0.5 ? q0 : q1, 3, 2.5);
+          } else { const sh = q0.clone().sub(a.pts[0]); a.pts.forEach(p => p.add(sh)); }
+          add(a.pts, 0.085, 1.2, 0.45);
+          if (Math.random() < 0.12) bolt(q0, q0.clone().add(V3(0, rand(0.1, 0.35), 0)).addScaledVector(d, -rand(0.1, 0.5)), { rough: 0.35, depth: 3, w: 0.05, i: 0.5 });
+        });
+      }
+      // fences: raw lightning between the electrodes on each post
+      for (const F of fences) {
+        if (!near(F.mid, 70)) continue;
+        F.re -= dt;
+        if (F.re <= 0) {
+          F.re = rand(0.035, 0.08);
+          F.gens.unshift(F.levels.map(y => { const a = F.a.clone().setY(y), b = F.b.clone().setY(y), L = a.distanceTo(b), k = Math.max(2, Math.round(L / 1.2)), base = [];
+            for (let i = 0; i <= k; i++) base.push(a.clone().lerp(b, i / k).add(i && i < k ? V3(0, rand(-0.12, 0.12), 0).addScaledVector(F.n, rand(-0.1, 0.1)) : V3()));
+            let pts = []; for (let i = 0; i < k; i++) { const seg = jag(base[i], base[i + 1], 0.22, 3); if (i) seg.shift(); pts = pts.concat(seg); } return pts; }));
+          F.gens.length = Math.min(F.gens.length, 2);
+          if (Math.random() < 0.5) { const y = F.levels[(Math.random() * F.levels.length) | 0], p = F.a.clone().lerp(F.b, Math.random()).setY(y); bolt(p, p.clone().add(V3(rand(-0.4, 0.4), rand(-0.5, 0.5), 0).addScaledVector(F.n, rand(-0.4, 0.4))), { rough: 0.35, depth: 3, w: 0.05, i: 0.45 }); }
+          if (Math.random() < 0.25) sparks(Math.random() < 0.5 ? F.a.clone().setY(F.levels[0]) : F.b.clone().setY(F.levels[0]), 3, 2.5);
+        }
+        F.gens.forEach((g, gi) => g.forEach(pts => add(pts, 0.085, (gi ? 0.22 : 1) * rand(0.8, 1.1), gi ? 0 : 0.5)));
+      }
+      // coils (generators / lifts): corona brush streamers, and arcs to the core while charging
+      for (const K of coils) {
+        if (!near(K.at, 60)) continue;
+        for (let j = 0; j < K.brush; j++) { const p = K.pick(), o = V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); add(jag(p, p.clone().addScaledVector(o, rand(0.08, 0.26)), 0.4, 3), 0.03, rand(0.3, 0.6), 0); }
+        if (K.charging && K.charging()) { K.re -= dt; if (K.re <= 0) { K.re = rand(0.04, 0.09); K.pts = [K.pick(), K.core.clone().add(V3(rand(-0.2, 0.2), rand(-0.2, 0.2), rand(-0.2, 0.2)))]; if (Math.random() < 0.4) sparks(K.pts[0], 3, 2); }
+          bolt(K.pts[0], K.pts[1], { rough: 0.3, depth: 4, w: 0.08, i: 1.0, hot: 0.4, branch: 0.4 }); }
+      }
+    }
+    stepSparks(dt);
+    ['position', 'aP1', 'aWI'].forEach(k => { geo.attributes[k].needsUpdate = true; }); geo.setDrawRange(0, n * 6);
+  }
+  function clear() { rails = []; fences = []; coils = []; n = 0; sl.fill(0); geo.setDrawRange(0, 0); }
+  return { U, add, jag, bolt, sparks, update, clear, copper, alu, ceramic, glass, corona, insulatorGeo, cable, merge,
+    addRail(R) { rails.push(R); }, addFence(F) { fences.push(F); }, addCoil(K) { coils.push(K); } };
 })();
 
 /* ================= GAME STATE ================= */
@@ -3395,7 +3617,7 @@ function hideScreens() { ['#title', '#stageSel', '#howto', '#pause', '#clear', '
 function loadStage(i) {
   const st = STAGES[i], T = THEMES[st.theme];
   newWorld(T); applyTheme(T, 1);
-  st.build(); flushVines(); VGROW.value = 0; WIND.clear(); W.killY = st.killY;
+  ELEC.clear(); st.build(); flushVines(); VGROW.value = 0; WIND.clear(); W.killY = st.killY;
   decorate(T.key);
   G.stage = i; G.total = W.shards.length; G.shards = 0; G.deaths = 0; G.kills = 0; G.stageTime = 0; G.hintSaid = false;
   G.avail = [0, 1, 2, 3].map(l => st.lenses.includes(l));
@@ -3577,6 +3799,7 @@ function updateSeqs(dt) {
 }
 
 function updateMisc(dt) {
+  ELEC.update(dt);
   if (W.blooms) for (const b of W.blooms) { // bloom pads: breathe, and spring like a jelly when bounced on
     const k = G.t - (b.s.bounceT ?? -99), e = k < 4 ? Math.exp(-4.2 * k) * Math.cos(k * 15) : 0;
     const br = Math.sin(G.t * 1.6 + b.ph) * 0.025, on = G.lens === 2 ? 1 : 0;
@@ -3624,7 +3847,7 @@ function updateMisc(dt) {
   }
   // generators
   for (const g of W.gens) {
-    g.coil.rotation.x = Math.PI / 2; g.coil.rotation.z += dt * (g.done ? 6 : 1); g.coil2.rotation.x = Math.PI / 2; g.coil2.rotation.z -= dt * (g.done ? 8 : 1.4);
+    g.cor.material.uniforms.uSpeed.value = g.done ? 26 : 11; // a powered coil pushes its current faster
     const d = g.pos.distanceTo(PL.pos);
     if (!g.done && G.lens === 3 && d < 9 && G.state === 'play') {
       g.charge += dt / 1.3;
@@ -3779,7 +4002,7 @@ $('#bNext').onclick = () => startStage(Math.min(4, G.stage + 1));
 $('#bRetry').onclick = () => startStage(G.stage);
 $('#bTitleC').onclick = toTitle;
 $('#bEndTitle').onclick = toTitle;
-if (IS_TOUCH) $('#soundNote').textContent = 'SOUND ON · 横向き推奨 · TOUCH CONTROLS';
+if (IS_TOUCH) $('#soundNote').textContent = 'SOUND ON · TOUCH CONTROLS';
 
 /* ================= BOOT ================= */
 resize();
