@@ -103,7 +103,6 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
   background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.3);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .tbtn.down{background:rgba(255,255,255,.35)}
 #tJump{width:84px;height:84px;right:calc(env(safe-area-inset-right,0px) + 22px);bottom:calc(env(safe-area-inset-bottom,0px) + 30px)}
-#tDash{width:62px;height:62px;right:calc(env(safe-area-inset-right,0px) + 118px);bottom:calc(env(safe-area-inset-bottom,0px) + 22px)}
 .stick-hint{position:absolute;left:calc(env(safe-area-inset-left,0px) + 26px);bottom:calc(env(safe-area-inset-bottom,0px) + 30px);width:96px;height:96px;border-radius:50%;
   border:2px dashed rgba(255,255,255,.18);display:grid;place-items:center;font:700 10px var(--f-num);letter-spacing:.2em;color:rgba(255,255,255,.35)}
 
@@ -183,8 +182,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 }
 @media (orientation:portrait){
   .touch #tJump{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
-  .touch #tDash{right:calc(env(safe-area-inset-right,0px) + 34px);bottom:calc(env(safe-area-inset-bottom,0px) + 192px)}
-  .touch .stick-hint{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
+  .touch   .touch .stick-hint{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
 }
 @media (prefers-reduced-motion:reduce){.logo .shift::before,.logo .shift::after,#prompt.on,.pip.next{animation:none}}
 </style>
@@ -222,7 +220,6 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
     <div id="touch">
       <div class="stick-hint">MOVE</div>
       <div id="stick"><i></i></div>
-      <button class="tbtn" id="tDash" aria-label="Dash">DASH</button>
       <button class="tbtn" id="tJump" aria-label="Jump">JUMP</button>
     </div>
     <div id="lensBar">
@@ -272,7 +269,6 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
         <kbd>WASD / 矢印</kbd><span>移動</span>
         <kbd>マウス</kbd><span>カメラ（画面クリックで固定）</span>
         <kbd>SPACE</kbd><span>ジャンプ（空中でもう1回）</span>
-        <kbd>SHIFT / 右クリック</kbd><span>ダッシュ（空中1回）</span>
         <kbd>1 2 3 4 / ホイール</kbd><span>メガネ切替（同じ番号 or Q で外す）</span>
         <kbd>R</kbd><span>チェックポイントへ戻る</span>
         <kbd>ESC</kbd><span>ポーズ</span>
@@ -280,7 +276,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
       <div class="keys" id="keysTouch" hidden>
         <kbd>左側ドラッグ</kbd><span>移動</span>
         <kbd>右側ドラッグ</kbd><span>カメラ</span>
-        <kbd>JUMP / DASH</kbd><span>ジャンプ・ダッシュ</span>
+        <kbd>JUMP</kbd><span>ジャンプ（空中でもう1回）</span>
         <kbd>下のレンズ</kbd><span>メガネ切替（もう一度タップで外す）</span>
       </div>
       <div class="btns"><button class="btn primary" data-back>OK</button></div>
@@ -1046,17 +1042,20 @@ const B = {
     const M = W.mats; if (!M.alu) { M.alu = ELEC.alu(); M.ceramic2 = ELEC.ceramic(); W.dispose.push(M.alu, M.ceramic2); }
     if (!M.glass) { M.glass = ELEC.glass(); W.dispose.push(M.glass); }
     // guide cables: stranded conductor with corona discharge and current packets climbing it
-    const H = y1 - y0 + 3, cabs = [], insG = ELEC.insulatorGeo(4, 0.14, 0.5);
+    const H = y1 - y0 + 3, cabs = [], insG = ELEC.insulatorGeo(4, 0.2, 0.6);
     [[-1, -1], [1, 1]].forEach(([a, b]) => {
       const bx = x + a * (w / 2 + 0.15), bz = z + b * (d / 2 + 0.15), bot = V3(bx, y0 - 1, bz), top = V3(bx, y0 - 1 + H, bz);
       const curve = new THREE.LineCurve3(bot, top), segs = Math.max(8, Math.round(H * 2));
-      W.g.add(new THREE.Mesh(ELEC.cable(curve, segs, 0.06, 2.4), M.alu));
-      const cor = new THREE.Mesh(new THREE.TubeGeometry(curve, segs, 0.16, 12, false), ELEC.corona(H, 8)); cor.renderOrder = 6; W.dispose.push(cor.material); W.g.add(cor);
+      W.g.add(new THREE.Mesh(ELEC.cable(curve, segs, 0.1, 1.8), M.alu));
+      const cor = new THREE.Mesh(new THREE.TubeGeometry(curve, segs, 0.36, 12, false), ELEC.corona(H, 9, 2.4)); cor.renderOrder = 6; W.dispose.push(cor.material); W.g.add(cor);
       const ins = new THREE.Mesh(insG, M.glass); ins.position.set(bx, top.y, bz); W.g.add(ins);
-      const cap = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 10, 24), M.alu); cap.rotation.x = Math.PI / 2; cap.position.set(bx, top.y + 0.55, bz); W.g.add(cap);
+      const cap = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.09, 12, 28), M.alu); cap.rotation.x = Math.PI / 2; cap.position.set(bx, top.y + 0.55, bz); W.g.add(cap);
       cabs.push({ bot, top });
     });
-    ELEC.addCoil({ at: V3(x, (y0 + y1) / 2, z), brush: 6, pick: () => { const c = cabs[(Math.random() * cabs.length) | 0]; return c.bot.clone().lerp(c.top, Math.random()); } });
+    ELEC.addCoil({ at: V3(x, (y0 + y1) / 2, z), brush: 22, bs: 2.4, pick: () => { const c = cabs[(Math.random() * cabs.length) | 0]; return c.bot.clone().lerp(c.top, Math.random()); },
+      // heavy feed arcs jump from a cable down onto the corner of the car, riding along with it
+      span: () => { const e = W.elevators.find(v => v.s === s), cy = e ? e.y : y0, k = (Math.random() * 2) | 0, c = cabs[k], sg = k ? 1 : -1;
+        return [c.bot.clone().setY(cy + rand(0.4, 2.2)), V3(x + sg * (w / 2 - 0.1), cy + 0.02, z + sg * (d / 2 - 0.1))]; } });
     W.elevators.push({ s, y0, y1, y: y0 }); return s;
   },
   door(x0, y0, z0, x1, y1, z1) {
@@ -1189,7 +1188,8 @@ function makeSeq(x, top, z, steps, br, style) {
     const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 120, 0.09, 6), tMat); m.visible = false; grp.add(m); return { m, pts }; });
   tendrils.forEach(t => { t.m.geometry.setDrawRange(0, 0); });
   // planks
-  const planks = []; const n = Math.ceil(len / 1.2);
+  const planks = []; const n = style.model ? 0 : Math.ceil(len / 1.2);
+  const lb = style.model ? makeLightBridge(br, LENS_COL[steps[2] ?? steps[0]], style.model) : null;
   const pMatGhost = new THREE.MeshStandardMaterial({ color: LENS_COL[steps[2] ?? steps[0]], emissive: LENS_COL[steps[2] ?? steps[0]], emissiveIntensity: 1.2, transparent: true, opacity: 0.45, roughness: 0.2 }); W.dispose.push(pMatGhost);
   const finalCol = style.final; const pMatFinal = new THREE.MeshStandardMaterial({ color: col(finalCol), roughness: style.rough ?? 0.5, metalness: style.metal ?? 0, emissive: col(style.emi || '#000000'), emissiveIntensity: 0.6 }); W.dispose.push(pMatFinal);
   for (let i = 0; i < n; i++) {
@@ -1197,7 +1197,7 @@ function makeSeq(x, top, z, steps, br, style) {
     const p = new THREE.Mesh(pg, pMatGhost); p.position.set(br.x, br.y - 0.25, br.z0 - (i + 0.5) * len / n); p.scale.setScalar(0.001); p.visible = false; p.receiveShadow = true; grp.add(p); planks.push(p);
   }
   const tag = makeTag();
-  const S = { pos: V3(x, top + 1.8, z), steps, idx: 0, cd: 0, radius: 18, br, seed, seedMat, halo, tendrils, planks, pMatFinal, pMatGhost, tMat, tag, done: false, anim: 0, phase: -1, style };
+  const S = { pos: V3(x, top + 1.8, z), steps, idx: 0, cd: 0, radius: 18, br, seed, seedMat, halo, tendrils, planks, pMatFinal, pMatGhost, tMat, tag, done: false, anim: 0, phase: -1, style, lb };
   W.seqs.push(S); return S;
 }
 
@@ -1557,16 +1557,16 @@ const ELEC = (() => {
   const ceramic = () => new THREE.MeshStandardMaterial({ color: col('#d9d4c7'), metalness: 0, roughness: 0.28 });
   const glass = () => new THREE.MeshStandardMaterial({ color: col('#5d8f86'), metalness: 0.1, roughness: 0.08, transparent: true, opacity: 0.82 });
   // corona sheath: wispy discharge + current packets travelling along uv.x (tube) — only while yellow is on
-  const corona = (len, speed = 11) => new THREE.ShaderMaterial({
-    uniforms: Object.assign({ uLen: { value: len }, uSpeed: { value: speed } }, U), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  const corona = (len, speed = 11, gain = 1) => new THREE.ShaderMaterial({
+    uniforms: Object.assign({ uLen: { value: len }, uSpeed: { value: speed }, uGain: { value: gain } }, U), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     vertexShader: 'varying vec2 vUv; varying vec3 vW; varying vec3 vN; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: 'uniform float uTime, uLen, uOn, uSpeed; uniform vec3 uCore, uGlow; varying vec2 vUv; varying vec3 vW; varying vec3 vN;\n' + NOISE + `
+    fragmentShader: 'uniform float uTime, uLen, uOn, uSpeed, uGain; uniform vec3 uCore, uGlow; varying vec2 vUv; varying vec3 vW; varying vec3 vN;\n' + NOISE + `
       void main(){ float c = abs(dot(normalize(vN), normalize(cameraPosition - vW)));
         float nz = efbm(vW * 6.5 + vec3(uTime * 0.6, uTime * 2.2, -uTime * 0.8));
         float wisp = smoothstep(0.5, 0.9, nz) * pow(c, 1.2);
         float s = vUv.x * uLen; float pk = exp(-pow(mod(s - uTime * uSpeed, 7.0) - 3.5, 2.0) * 3.0) + 0.7 * exp(-pow(mod(s * 1.3 - uTime * uSpeed * 0.65 + 2.0, 9.0) - 4.5, 2.0) * 5.0);
         vec3 col = mix(uGlow, vec3(0.62, 0.55, 1.2), 0.45) * (wisp * 0.45 + 0.05 * c) + uGlow * pk * pow(c, 3.0) * 0.45;
-        gl_FragColor = vec4(col * uOn, 1.0); }`,
+        gl_FragColor = vec4(col * uOn * uGain, 1.0); }`,
   });
   function insulatorGeo(k, r, h) { const pts = []; for (let i = 0; i <= k; i++) { const y = i * h / k; pts.push(new THREE.Vector2(r * 0.35, y), new THREE.Vector2(r, y + h / k * 0.25), new THREE.Vector2(r * 0.35, y + h / k * 0.55)); } return new THREE.LatheGeometry(pts, 16); }
   function merge(geos) {
@@ -1631,7 +1631,10 @@ const ELEC = (() => {
       // coils (generators / lifts): corona brush streamers, and arcs to the core while charging
       for (const K of coils) {
         if (!near(K.at, 60)) continue;
-        for (let j = 0; j < K.brush; j++) { const p = K.pick(), o = V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); add(jag(p, p.clone().addScaledVector(o, rand(0.08, 0.26)), 0.4, 3), 0.03, rand(0.3, 0.6), 0); }
+        const bs = K.bs || 1;
+        for (let j = 0; j < K.brush; j++) { const p = K.pick(), o = V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); add(jag(p, p.clone().addScaledVector(o, rand(0.08, 0.26) * bs), 0.4, 3), 0.03 * Math.sqrt(bs), rand(0.3, 0.6) * (bs > 1 ? 1.3 : 1), 0); }
+        if (K.span) { K.sre = (K.sre || 0) - dt; if (K.sre <= 0) { K.sre = rand(0.03, 0.06); K.spt = Math.random() < 0.15 || !K.spt ? K.span() : K.spt; if (K.spt) { const [a, b] = K.spt; K.spPts = jag(a, b, 0.22, 5); if (Math.random() < 0.3) sparks(a, 3, 2.5); } }
+          if (K.spPts) add(K.spPts, 0.1, 1.1, 0.5); }
         if (K.charging && K.charging()) { K.re -= dt; if (K.re <= 0) { K.re = rand(0.04, 0.09); K.pts = [K.pick(), K.core.clone().add(V3(rand(-0.2, 0.2), rand(-0.2, 0.2), rand(-0.2, 0.2)))]; if (Math.random() < 0.4) sparks(K.pts[0], 3, 2); }
           bolt(K.pts[0], K.pts[1], { rough: 0.3, depth: 4, w: 0.08, i: 1.0, hot: 0.4, branch: 0.4 }); }
       }
@@ -1643,6 +1646,368 @@ const ELEC = (() => {
   return { U, add, jag, bolt, sparks, update, clear, copper, alu, ceramic, glass, corona, insulatorGeo, cable, merge,
     addRail(R) { rails.push(R); }, addFence(F) { fences.push(F); }, addCoil(K) { coils.push(K); } };
 })();
+
+/* ================= SEED BRIDGE MODELS =================
+   The colour-genesis bridges get a proper model per style.model:
+     'glass'   — Neon Grid, hard-light glass deck (light-bridge design A)
+     'circuit' — Neon Grid, circuit-board deck with a data waterfall (light-bridge design C)
+     'vine'    — Overgrowth, lashed planks on braided vine cables (wood design B)
+     'leaf'    — Overgrowth, a giant leaf on arching stems (wood design C)
+   Every model is built in a local frame: along +x from -H to +H, deck top at y = 0, width 2*HW; the group is turned so
+   local +x runs along the bridge (z0 -> z1). The build-up is uniform-driven: uGrow (0..1) discards everything past the
+   growth front and shows it in the lens colour, uSolid (0..1) materialises it. */
+function makeLightBridge(br, ghostCol, kind = 'glass') {
+  const len = br.z0 - br.z1, H = len / 2, HW = br.w / 2, F = (v) => v.toFixed(3);
+  const U = { uTime: GU.time, uGrow: { value: 0 }, uSolid: { value: 0 }, uGhost: { value: ghostCol.clone().multiplyScalar(2.2) }, uWalk: { value: V3(0, -99, 0) }, uInv: { value: new THREE.Matrix4() } };
+  let seed = 11 + Math.round(Math.abs(br.z0)); const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  const rand = (a, b) => a + rnd() * (b - a);
+  const nz = (x) => Math.sin(x * 1.7) * 0.5 + Math.sin(x * 3.1 + 1.3) * 0.3 + Math.sin(x * 7.3 + 2.1) * 0.2;
+  const NOISE = `
+    float h1(float n){ return fract(sin(n) * 43758.5453); }
+    float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+    float vn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+    float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= 0.5; } return s; }`;
+  const GROW = `
+    float gx = (vW.x + ${F(H)}) / ${F(len)};
+    float gj = uGrow * 1.06 - 0.03 + (vn(vW * 2.0) - 0.5) * 0.04;
+    if (gx > gj) discard;
+    float front = exp(-abs(gx - gj) * 65.0) * step(uGrow, 0.999);`;
+  const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+
+  // unlit, self-lit parts (light bridges)
+  const bmat = (o) => {
+    const frag = `uniform float uTime, uGrow, uSolid; uniform vec3 uGhost, uWalk; varying vec3 vW, vWW, vN, vNW, vC; varying vec2 vUv;
+        ${NOISE}
+        float fres(){ return 1.0 - abs(dot(normalize(vNW), normalize(cameraPosition - vWW))); }
+        float fres(vec3 a, vec3 b){ return fres(); }
+        ${o.frag}
+        void main(){ ${GROW}
+          float a = 1.0; vec3 col = shade(a);
+          float lum = dot(col, vec3(0.3, 0.5, 0.2));
+          col = mix(uGhost * (0.12 + lum * 1.4), col, uSolid) + uGhost * front * 3.0;
+          gl_FragColor = vec4(col, ${o.additive ? '1.0' : 'a'}); }`;
+    const m = new THREE.ShaderMaterial({
+      uniforms: U, transparent: !!(o.additive || o.alpha), depthWrite: !o.additive, blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      side: o.side ?? THREE.FrontSide, fog: false,
+      vertexShader: `uniform mat4 uInv; varying vec3 vW, vWW, vN, vNW, vC; varying vec2 vUv;
+        void main(){ vec4 p = vec4(position, 1.0); mat4 im = mat4(1.0);
+        #ifdef USE_INSTANCING
+          im = instanceMatrix;
+        #endif
+          vUv = uv; vec4 w = modelMatrix * im * p; vWW = w.xyz; vW = (uInv * w).xyz; vC = (uInv * modelMatrix * im * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          vNW = normalize(mat3(modelMatrix) * mat3(im) * normal); vN = normalize(mat3(uInv) * vNW);
+          gl_Position = projectionMatrix * viewMatrix * w; }`,
+      fragmentShader: frag,
+    });
+    W.dispose.push(m); return m;
+  };
+  // lit PBR parts (wood bridges): albedo / roughness / bump height / glow written in GLSL, lit and shadowed by three
+  const pmat = (body, o = {}) => {
+    const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0, side: o.side ?? THREE.FrontSide });
+    const key = 'sb' + hash(body + len + (o.bump ?? 1));
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      sh.vertexShader = 'uniform mat4 uInv; varying vec3 vW, vNw, vQ;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+        vQ = transformed;
+        #ifdef USE_INSTANCING
+          vW = (uInv * modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz; vNw = normalize(mat3(uInv) * mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);
+        #else
+          vW = (uInv * modelMatrix * vec4(transformed, 1.0)).xyz; vNw = normalize(mat3(uInv) * mat3(modelMatrix) * objectNormal);
+        #endif`);
+      sh.fragmentShader = 'uniform float uTime, uGrow, uSolid; uniform vec3 uGhost; varying vec3 vW, vNw, vQ;\n' + NOISE + '\n' + sh.fragmentShader
+        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + GROW)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          vec3 p = vW, q = vQ, n = normalize(vNw) * (gl_FrontFacing ? 1.0 : -1.0); vec3 al = vec3(0.5); float ro = 0.8, hh = 0.0; vec3 em = vec3(0.0);
+          { ${body} }
+          diffuseColor.rgb = al;`)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = ro;')
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          { vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
+            vec3 gr = sign(det) * (dFdx(hh) * r1 + dFdy(hh) * r2); normal = normalize(abs(det) * normal - gr * ${(o.bump ?? 1).toFixed(2)}); }`)
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += em;')
+        .replace('#include <output_fragment>', `{ float lum = dot(outgoingLight, vec3(0.3, 0.5, 0.2));
+            outgoingLight = mix(uGhost * (0.25 + lum * 0.8), outgoingLight, uSolid) + uGhost * front * 3.0; }
+          #include <output_fragment>`);
+    };
+    m.customProgramCacheKey = () => key;
+    W.dispose.push(m); return m;
+  };
+
+  /* ---------- geometry helpers ---------- */
+  const merge = (geos) => {
+    const gs = geos.map(g => g.index ? g.toNonIndexed() : g); let n = 0; gs.forEach(g => { n += g.attributes.position.count; });
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2); let o = 0;
+    gs.forEach(g => { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); if (g.attributes.uv) uv.set(g.attributes.uv.array, o * 2); o += g.attributes.position.count; });
+    const m = new THREE.BufferGeometry(); m.setAttribute('position', new THREE.BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); m.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    return m;
+  };
+  const _q = new THREE.Quaternion();
+  const beam = (a, b, r, seg = 6) => { const d = b.clone().sub(a), L = d.length(); const g = new THREE.CylinderGeometry(r, r, L, seg, 1, true);
+    g.translate(0, L / 2, 0); _q.setFromUnitVectors(V3(0, 1, 0), d.normalize()); g.applyQuaternion(_q); g.translate(a.x, a.y, a.z); return g; };
+  const tube = (pts, n, rs, rf, lumpy = 0) => {
+    const curve = pts.isCurve ? pts : new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const fr = curve.computeFrenetFrames(n, false), pos = [], nor = [], uv = [], idx = [];
+    for (let i = 0; i <= n; i++) {
+      const u = i / n, P = curve.getPointAt(u), N = fr.normals[i], B = fr.binormals[i], r = rf(u);
+      for (let j = 0; j <= rs; j++) {
+        const v = j / rs * Math.PI * 2, c = Math.cos(v), s = Math.sin(v);
+        const nx = N.x * c + B.x * s, ny = N.y * c + B.y * s, nzz = N.z * c + B.z * s;
+        const rr = r * (1 + lumpy * (Math.sin(v * 3 + u * 17) * 0.5 + Math.sin(v * 5 - u * 29) * 0.3));
+        pos.push(P.x + nx * rr, P.y + ny * rr, P.z + nzz * rr); nor.push(nx, ny, nzz); uv.push(u, j / rs);
+      }
+    }
+    for (let i = 0; i < n; i++) for (let j = 0; j < rs; j++) { const a = i * (rs + 1) + j, b = a + rs + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+    return g;
+  };
+  const leafGeo = (L, Wd, fold = 0.25, droop = 0.3, nx = 10, nzs = 4) => {
+    const g = new THREE.PlaneGeometry(1, 1, nx, nzs * 2), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const u = p.getX(i) + 0.5, v = p.getY(i) * 2, w = Math.sin(Math.PI * Math.pow(u, 0.8)) * Wd * 0.5;
+      p.setXYZ(i, u * L, Math.abs(v) * w * fold - droop * L * u * u, v * w); }
+    g.computeVertexNormals(); return g;
+  };
+  const TRS = (x, y, z, rx = 0, ry = 0, rz = 0, s = 1) => new THREE.Matrix4().compose(V3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), V3(s, s, s));
+  const path = (a, b, n, sag = 0, wig = 0, ph = 0) => { const pts = [];
+    for (let i = 0; i <= n; i++) { const t = i / n, m = Math.sin(Math.PI * t); const p = a.clone().lerp(b, t); p.y -= sag * m; p.z += wig * m * nz(t * 5 + ph); p.y += wig * 0.5 * m * nz(t * 4 + ph + 9); pts.push(p); }
+    return pts; };
+
+  const g = new THREE.Group(); g.position.set(br.x, br.y, (br.z0 + br.z1) / 2); g.rotation.y = Math.PI / 2; g.visible = false; W.g.add(g);
+  const add = (m, o = {}) => { m.frustumCulled = false; if (o.ro) m.renderOrder = o.ro; if (o.shadow) { m.castShadow = true; m.receiveShadow = true; } g.add(m); return m; };
+  const inst = (geo, mat, ms, o) => { const m = new THREE.InstancedMesh(geo, mat, ms.length); ms.forEach((M, i) => m.setMatrixAt(i, M)); return add(m, o); };
+
+  /* ================= light bridge A: hard-light glass ================= */
+  const buildGlass = () => {
+    const deck = add(new THREE.Mesh(new THREE.BoxGeometry(len, 0.28, HW * 2), bmat({ alpha: true, frag: `
+      float hexd(vec2 p){ p = abs(p); return max(dot(p, vec2(0.5, 0.8660254)), p.x); }
+      vec3 shade(inout float a){
+        if (vN.y > 0.5) {
+          vec2 p = vW.xz / 0.55; vec2 r = vec2(1.0, 1.7320508); vec2 h = r * 0.5;
+          vec2 A = mod(p, r) - h, B = mod(p - h, r) - h; vec2 q = dot(A, A) < dot(B, B) ? A : B; vec2 id = p - q;
+          float e = 0.5 - hexd(q); float line = exp(-e * e * 900.0) + exp(-e * 40.0) * 0.08;
+          float flick = step(0.93, h2(id + floor(uTime * 3.0)));
+          float scan = pow(0.5 + 0.5 * sin(vW.x * 0.45 - uTime * 2.4), 26.0);
+          float d = length(vW.xz - uWalk.xz); float ring = exp(-pow(d - fract(uTime * 1.4) * 3.2, 2.0) * 14.0) * exp(-d * 0.7) * (1.0 - fract(uTime * 1.4));
+          float foot = exp(-d * d * 1.6);
+          float edge = exp(-(${F(HW)} - abs(vW.z)) * 22.0);
+          vec3 c = vec3(0.01, 0.025, 0.05) + vec3(0.25, 0.9, 1.0) * (line * (0.55 + 1.8 * scan + 1.4 * foot) + flick * 0.35 * (0.4 - e));
+          c += vec3(0.9, 0.3, 1.0) * ring * 1.6 + vec3(0.6, 0.95, 1.0) * edge * 2.5;
+          a = clamp(0.62 + line * 0.3 + edge, 0.0, 1.0); return c;
+        }
+        if (vN.y < -0.5) { float s = pow(0.5 + 0.5 * sin(vW.x * 1.2 - uTime * 3.0), 12.0); a = 0.5; return vec3(0.03, 0.05, 0.1) + vec3(0.25, 0.8, 1.0) * s * 0.35; }
+        float t = clamp((vW.y + 0.28) / 0.28, 0.0, 1.0); float dash = step(0.5, fract(vW.x * 1.5 - uTime * 2.0));
+        a = 0.9; return mix(vec3(0.1, 0.4, 0.8) * 0.6, vec3(0.6, 1.0, 1.0) * 2.4, pow(t, 3.0)) * (0.7 + 0.3 * dash);
+      }` })), { ro: 2 });
+    deck.position.y = -0.14;
+    const tubeM = bmat({ frag: `vec3 shade(inout float a){ float pk = pow(0.5 + 0.5 * sin(vW.x * 0.8 - uTime * 7.0), 18.0); return vec3(0.35, 0.95, 1.0) * (1.6 + 3.0 * pk) * (0.6 + 0.4 * fres()); }` });
+    const railM = bmat({ frag: `vec3 shade(inout float a){ float pk = pow(0.5 + 0.5 * sin(vW.x * 0.6 + uTime * 5.0), 20.0); return vec3(1.0, 0.3, 0.9) * (1.3 + 2.5 * pk); }` });
+    const postM = bmat({ frag: `vec3 shade(inout float a){ float l = 0.35 + 0.65 * max(dot(normalize(vNW), normalize(vec3(0.3, 1.0, 0.4))), 0.0); return vec3(0.07, 0.075, 0.12) * l + vec3(0.3, 0.9, 1.0) * pow(fres(), 3.0) * 0.4; }` });
+    const curbs = [], rails = [], posts = [], np = Math.max(2, Math.round(len / 2));
+    [-1, 1].forEach(s => {
+      curbs.push(beam(V3(-H, 0.04, s * (HW - 0.05)), V3(H, 0.04, s * (HW - 0.05)), 0.045, 8));
+      rails.push(beam(V3(-H, 1.05, s * (HW - 0.08)), V3(H, 1.05, s * (HW - 0.08)), 0.03, 8));
+      for (let i = 0; i <= np; i++) posts.push(new THREE.BoxGeometry(0.05, 1.05, 0.05).translate(-H + i * len / np, 0.52, s * (HW - 0.08)));
+    });
+    add(new THREE.Mesh(merge(curbs), tubeM)); add(new THREE.Mesh(merge(rails), railM)); add(new THREE.Mesh(merge(posts), postM));
+    const curtain = bmat({ additive: true, side: THREE.DoubleSide, frag: `vec3 shade(inout float a){
+      float y = clamp(vW.y / 1.05, 0.0, 1.0); float ln = pow(abs(sin(vW.x * 3.14159 * 3.0)), 60.0);
+      float drift = fbm(vec3(vW.x * 0.7 - uTime * 0.8, vW.y * 2.0 - uTime * 0.6, 0.0));
+      float d = abs(vW.x - uWalk.x); float near = exp(-d * d * 0.4) * step(abs(uWalk.y), 3.0);
+      return vec3(0.3, 0.8, 1.0) * ((ln * 0.35 + drift * 0.12) * pow(1.0 - y, 1.6) * (1.0 + near * 3.0)) + vec3(1.0, 0.3, 0.9) * exp(-(1.0 - y) * 16.0) * 0.25; }` });
+    [-1, 1].forEach(s => { const p = add(new THREE.Mesh(new THREE.PlaneGeometry(len, 1.05), curtain), { ro: 3 }); p.position.set(0, 0.525, s * (HW - 0.08)); });
+    const kb = [], y0 = -0.3, yk = -2.2, nk = Math.max(2, Math.round(len / 2)), st = len / nk;
+    for (let i = 0; i <= nk; i++) {
+      const x = -H + i * st;
+      [-1, 1].forEach(s => { kb.push(beam(V3(x, y0, s * (HW - 0.1)), V3(x + (i < nk ? st / 2 : -st / 2), yk, 0), 0.035, 5)); if (i < nk) kb.push(beam(V3(x + st / 2, yk, 0), V3(x + st, y0, s * (HW - 0.1)), 0.035, 5)); });
+    }
+    kb.push(beam(V3(-H, yk, 0), V3(H, yk, 0), 0.08, 8));
+    [-1, 1].forEach(s => kb.push(beam(V3(-H, y0, s * (HW - 0.1)), V3(H, y0, s * (HW - 0.1)), 0.05, 6)));
+    add(new THREE.Mesh(merge(kb), bmat({ frag: `vec3 shade(inout float a){ float pk = pow(0.5 + 0.5 * sin(vW.x * 0.9 - uTime * 4.0 + vW.y * 2.0), 16.0); return vec3(0.12, 0.3, 0.6) * 0.8 + vec3(0.3, 0.9, 1.0) * pk * 2.2; }` })));
+    const glow = add(new THREE.Mesh(new THREE.PlaneGeometry(len, 6), bmat({ additive: true, side: THREE.DoubleSide, frag: `vec3 shade(inout float a){ float d = abs(vW.z) / 3.0; return vec3(0.15, 0.5, 0.9) * exp(-d * d * 4.0) * 0.18; }` })));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = -1.2;
+  };
+
+  /* ================= light bridge C: data circuit ================= */
+  const buildCircuit = () => {
+    const deck = add(new THREE.Mesh(new THREE.BoxGeometry(len, 0.36, HW * 2), bmat({ frag: `
+      vec3 shade(inout float a){
+        if (vN.y > 0.5) {
+          vec2 p = vW.xz; float lane = floor((p.y + ${F(HW)}) / 0.3); float ly = -${F(HW)} + (lane + 0.5) * 0.3;
+          float live = step(0.25, h1(lane * 7.1));
+          float sx = floor(p.x / 2.4 + h1(lane) * 3.0); float cut = step(0.18, h1(sx * 3.3 + lane * 1.7));
+          float fx = fract(p.x / 2.4 + h1(lane) * 3.0);
+          float jog = step(0.82, h1(sx + lane * 9.0)) * smoothstep(0.55, 0.75, fx) * 0.3;
+          float tr = live * cut * exp(-abs(p.y - ly - jog) * 70.0);
+          float via = live * exp(-pow(length(vec2((fx - 0.04) * 2.4, p.y - ly)), 2.0) * 900.0) + live * exp(-pow(length(vec2((fx - 0.96) * 2.4, p.y - ly - jog)), 2.0) * 900.0);
+          float spd = 3.0 + h1(lane * 3.7) * 6.0, dir = h1(lane * 5.3) < 0.5 ? -1.0 : 1.0;
+          float pk = pow(fract((p.x * dir - uTime * spd) / (3.0 + h1(lane) * 4.0)), 18.0) * live * cut;
+          vec3 pc = mix(vec3(0.3, 0.9, 1.0), vec3(1.0, 0.35, 0.9), step(0.6, h1(lane * 2.9)));
+          if (h1(lane * 13.0) > 0.88) pc = vec3(1.0, 0.82, 0.2);
+          vec2 cc = floor(p / vec2(3.1, 1.2)); vec2 cf = fract(p / vec2(3.1, 1.2));
+          float chip = step(0.8, h2(cc)) * step(0.2, cf.x) * step(cf.x, 0.55) * step(0.2, cf.y) * step(cf.y, 0.8);
+          float pins = chip * (1.0 - step(0.24, cf.y) * step(cf.y, 0.76)) * step(0.5, fract(p.x * 12.0));
+          float d = length(p - uWalk.xz); float pulse = exp(-pow(d - fract(uTime) * 2.5, 2.0) * 20.0) * exp(-d * 0.8);
+          float edge = exp(-(${F(HW)} - abs(p.y)) * 30.0);
+          vec3 c = vec3(0.012, 0.02, 0.035) + vec3(0.07, 0.05, 0.14) * tr * 3.0 + pc * (tr * 0.35 + via * 0.8 + pk * tr * 4.0);
+          c = mix(c, vec3(0.015, 0.015, 0.02) + vec3(0.3, 0.9, 1.0) * pins * 0.4, chip) + vec3(0.3, 0.9, 1.0) * (pulse * 1.3 + edge * 2.0);
+          return c;
+        }
+        float leds = step(0.5, fract(vW.x * 2.0)) * pow(fract(vW.x * 0.25 - uTime * 1.5), 6.0);
+        return vec3(0.02, 0.02, 0.04) + vec3(0.3, 0.9, 1.0) * leds * exp(-abs(vW.y + 0.1) * 30.0) * 3.0 + vec3(1.0, 0.3, 0.9) * exp(-abs(vW.y + 0.34) * 40.0) * 0.8;
+      }` })));
+    deck.position.y = -0.18;
+    const fib = [];
+    [-1, 1].forEach(s => { for (let k = 0; k < 3; k++) { const pts = []; for (let i = 0; i <= 140; i++) { const x = -H + i / 140 * len, th = x * 1.4 + k * 2.094; pts.push(V3(x, 0.95 + Math.sin(th) * 0.045, s * (HW - 0.1) + Math.cos(th) * 0.045)); }
+      fib.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 280, 0.022, 5)); } });
+    add(new THREE.Mesh(merge(fib), bmat({ frag: `vec3 shade(inout float a){ float s = vW.x;
+      vec3 c = mix(vec3(0.3, 0.9, 1.0), vec3(1.0, 0.35, 0.9), 0.5 + 0.5 * sin(s * 0.3 + uTime * 1.5 + vW.y * 40.0));
+      float pk = pow(0.5 + 0.5 * sin(s * 1.3 - uTime * 9.0 + vW.z * 30.0), 30.0); return c * (1.2 + 3.5 * pk); }` })));
+    const posts = []; [-1, 1].forEach(s => { for (let i = 0; i <= 7; i++) posts.push(TRS(-H + 0.2 + i * (len - 0.4) / 7, 0.47, s * (HW - 0.1))); });
+    inst(new THREE.BoxGeometry(0.16, 0.95, 0.2), bmat({ frag: `vec3 shade(inout float a){ vec3 lq = vW - vC; float l = 0.4 + 0.6 * max(dot(normalize(vNW), vec3(0.3, 0.8, 0.5)), 0.0);
+      float pin = step(0.6, fract(lq.y * 14.0)) * exp(-abs(abs(lq.z) - 0.1) * 80.0); float led = exp(-length(lq.xy - vec2(0.0, 0.35)) * 40.0);
+      return vec3(0.04, 0.04, 0.07) * l + vec3(0.8, 0.85, 1.0) * pin * 0.5 + vec3(1.0, 0.82, 0.2) * led * (1.5 + sin(uTime * 4.0 + vC.x)); }` }), posts);
+    const fall = [];
+    for (let i = 0; i < 44; i++) { const s = i % 2 ? 1 : -1; const m = TRS(rand(-H + 0.3, H - 0.3), -0.36 - 7, s * (HW + rand(-0.05, 0.05)), 0, Math.PI / 2 + rand(-0.2, 0.2)); m.scale(V3(rand(0.06, 0.14), 1, 1)); fall.push(m); }
+    const fm = inst(new THREE.PlaneGeometry(1, 14), bmat({ additive: true, side: THREE.DoubleSide, frag: `vec3 shade(inout float a){
+      float id = floor(h2(vC.xz) * 97.0);
+      float y = -vW.y; float sp = 3.0 + h1(id) * 4.0; float cell = floor((y + uTime * sp) * 3.0);
+      float on = step(0.45, h1(cell * 1.7 + id * 11.0)); float blk = smoothstep(0.1, 0.25, fract((y + uTime * sp) * 3.0)) * smoothstep(0.9, 0.75, fract((y + uTime * sp) * 3.0));
+      float head = pow(fract((y - uTime * sp * 0.6) / 14.0 + h1(id * 3.0)), 20.0);
+      vec3 c = mix(vec3(0.3, 0.9, 1.0), vec3(1.0, 0.35, 0.9), step(0.7, h1(id * 5.0)));
+      return c * (on * blk * 0.45 + head * 2.5) * exp(-y * 0.12); }` }), fall, { ro: 3 });
+    const sp = [beam(V3(-H, -1.2, 0), V3(H, -1.2, 0), 0.18, 8)];
+    for (let i = 0; i <= Math.round(len / 2); i++) [-1, 1].forEach(s => sp.push(beam(V3(-H + i * 2, -1.2, 0), V3(-H + i * 2, -0.36, s * (HW - 0.2)), 0.05, 5)));
+    add(new THREE.Mesh(merge(sp), bmat({ frag: `vec3 shade(inout float a){ float pk = pow(0.5 + 0.5 * sin(vW.x * 1.1 - uTime * 5.0), 14.0); return vec3(0.05, 0.05, 0.1) + vec3(1.0, 0.35, 0.9) * (0.25 + pk * 1.6) * fres(); }` })));
+  };
+
+  /* ---------- shared jungle materials ---------- */
+  const BARK = `
+    vec3 ax = abs(n.x) > 0.8 ? p.zyx : p;
+    float along = ax.x, across = atan(n.z, n.y) * 2.2 + ax.y * 0.6;
+    float rid = fbm(vec3(along * 0.9, across * 3.5, 0.0) + fbm(p * 1.3) * 1.2);
+    float crev = smoothstep(0.35, 0.62, rid);
+    float fine = fbm(p * vec3(1.2, 4.5, 4.5));
+    hh = crev * 0.06 + fine * 0.012;
+    vec3 barkC = mix(vec3(0.16, 0.11, 0.075), vec3(0.42, 0.33, 0.24), crev) * (0.8 + 0.4 * fine);
+    float up = smoothstep(-0.1, 0.8, n.y);
+    float moss = smoothstep(0.42, 0.62, fbm(p * 1.6 + 3.0) + up * 0.35 - 0.12) * smoothstep(-0.3, 0.3, n.y);
+    vec3 mossC = mix(vec3(0.12, 0.3, 0.06), vec3(0.36, 0.56, 0.12), fbm(p * 7.0));
+    al = mix(barkC, mossC, moss); ro = mix(0.88, 0.95, moss);`;
+  const leafMat = () => pmat(`
+    float mid = exp(-abs(q.z) * 40.0);
+    float vein = pow(abs(sin((q.x * 5.0 + abs(q.z) * 7.0) * 1.3)), 40.0) * smoothstep(0.0, 0.06, abs(q.z));
+    float tone = fbm(p * 1.5);
+    al = mix(vec3(0.1, 0.32, 0.06), vec3(0.28, 0.52, 0.1), tone) * (gl_FrontFacing ? 1.0 : 1.3);
+    al = mix(al, vec3(0.55, 0.72, 0.28), mid * 0.7 + vein * 0.35);
+    ro = gl_FrontFacing ? 0.45 : 0.75; hh = mid * 0.004 - vein * 0.002;`, { side: THREE.DoubleSide, bump: 0.6 });
+  const vineMat = () => pmat(`
+    float tw = fbm(vec3(q.x * 4.0 + q.y, q.y * 8.0, q.z * 8.0));
+    al = mix(vec3(0.14, 0.2, 0.06), vec3(0.34, 0.42, 0.14), tw); ro = 0.7; hh = tw * 0.01;
+    al = mix(al, vec3(0.3, 0.52, 0.1), smoothstep(0.5, 0.8, fbm(p * 5.0)) * smoothstep(0.0, 0.8, n.y));`);
+  const glowBulb = (c) => pmat(`al = vec3(0.9, 0.95, 0.8); ro = 0.3; em = vec3(${c}) * (1.6 + 0.6 * sin(uTime * 1.7 + p.x * 0.8));`);
+
+  /* ================= wood bridge B: vine suspension ================= */
+  const buildVine = () => {
+    const plankM = pmat(`
+      float gr = fbm(vec3(p.x * 18.0 + fbm(p * 2.0) * 3.0, p.y * 30.0, p.z * 0.6));
+      float rings = pow(abs(sin(gr * 18.0)), 6.0);
+      float plank = floor((p.x + 40.0) / 0.7);
+      vec3 base = mix(vec3(0.24, 0.15, 0.08), vec3(0.4, 0.27, 0.16), h1(plank * 3.7));
+      al = base * (0.75 + 0.4 * gr) - rings * 0.06; ro = 0.78; hh = gr * 0.012 - rings * 0.004;
+      float wear = smoothstep(0.6, 1.0, n.y) * (1.0 - smoothstep(0.6, 1.4, abs(p.z)));
+      al = mix(al, al * 1.25 + 0.03, wear * 0.5);
+      float moss = smoothstep(0.55, 0.75, fbm(p * 2.5 + 5.0)) * smoothstep(1.0, 1.7, abs(p.z));
+      al = mix(al, vec3(0.22, 0.4, 0.08), moss);`);
+    const P = [], L = [], NP = Math.round(len / 0.72), pw = len / NP;
+    for (let i = 0; i < NP; i++) { const x = -H + (i + 0.5) * pw, w = HW * 2 + rand(0.05, 0.35), th = rand(0.07, 0.1);
+      const b = new THREE.BoxGeometry(pw - rand(0.05, 0.1), th, w, 1, 1, 4); b.rotateY(rand(-0.03, 0.03)); b.translate(x, -th / 2, rand(-0.08, 0.08)); P.push(b); }
+    [-1, 1].forEach(s => P.push(tube(path(V3(-H - 2, -0.18, s * (HW - 0.25)), V3(H + 2, -0.18, s * (HW - 0.25)), 12, 0, 0.02, s), 60, 10, () => 0.11, 0.05)));
+    add(new THREE.Mesh(merge(P), plankM), { shadow: true });
+    const posts = [];
+    [-1, 1].forEach(e => [-1, 1].forEach(s => { posts.push(tube([V3(e * (H + 0.4), -0.8, s * (HW + 0.2)), V3(e * (H + 0.42), 0.8, s * (HW + 0.22)), V3(e * (H + 0.38), 1.75, s * (HW + 0.2))], 10, 12, u => 0.24 - u * 0.05, 0.1));
+      posts.push(new THREE.SphereGeometry(0.22, 12, 8).scale(1, 0.7, 1).translate(e * (H + 0.38), 1.78, s * (HW + 0.2))); }));
+    add(new THREE.Mesh(merge(posts), pmat(BARK, { bump: 1.4 })), { shadow: true });
+    const cable = (y0, sag, zs, r, ph) => { for (let k = 0; k < 3; k++) { const pts = []; for (let i = 0; i <= 60; i++) { const t = i / 60, x = -H - 0.4 + t * (len + 0.8), th = x * 2.2 + k * 2.09 + ph; pts.push(V3(x, y0 - Math.sin(Math.PI * t) * sag + Math.sin(th) * r, zs + Math.cos(th) * r)); } L.push(tube(pts, 240, 5, () => r * 0.75, 0.05)); } };
+    [-1, 1].forEach(s => { cable(1.62, 0.55, s * (HW + 0.2), 0.045, s); cable(0.95, 0.25, s * (HW + 0.12), 0.03, s + 1); });
+    const railY = (x, y0, sag) => y0 - Math.sin(Math.PI * (x + H + 0.4) / (len + 0.8)) * sag;
+    for (let i = 0; i <= NP; i += 2) { const x = -H + i * pw; [-1, 1].forEach(s => {
+      const top = railY(x, 1.62, 0.55);
+      if (i + 2 <= NP) {
+        L.push(tube([V3(x, top, s * (HW + 0.2)), V3(x + pw * 0.9, railY(x, 0.95, 0.25), s * (HW + 0.14)), V3(x + pw * 2, -0.12, s * (HW + 0.08))], 10, 4, () => 0.016));
+        L.push(tube([V3(x + pw * 2, railY(x + pw * 2, 1.62, 0.55), s * (HW + 0.2)), V3(x + pw * 1.1, railY(x, 0.95, 0.25), s * (HW + 0.14)), V3(x, -0.12, s * (HW + 0.08))], 10, 4, () => 0.016));
+      }
+      const pts = []; for (let k = 0; k <= 36; k++) { const a = k / 36 * Math.PI * 6; pts.push(V3(x + pw * 0.5 + (k / 36 - 0.5) * 0.18, -0.13 + Math.sin(a) * 0.15, s * (HW - 0.25) + Math.cos(a) * 0.17)); }
+      if (i < NP) L.push(tube(pts, 72, 4, () => 0.018));
+    }); }
+    add(new THREE.Mesh(merge(L), vineMat()), { shadow: true });
+    const lm = [];
+    [-1, 1].forEach(s => { for (let i = 0; i < 90; i++) { const x = rand(-H, H), top = rnd() < 0.6; const y = top ? railY(x, 1.62, 0.55) : railY(x, 0.95, 0.25);
+      lm.push(TRS(x, y, s * (HW + (top ? 0.2 : 0.12)), rand(-0.8, 0.8), rand(0, 6.3), rand(-0.6, 0.2), rand(0.18, 0.32))); } });
+    inst(leafGeo(1, 0.5, 0.25, 0.25, 6, 2), leafMat(), lm, { shadow: true });
+    const bells = [], stems = [];
+    [-1, 1].forEach(s => { for (let i = 0; i < 9; i++) { const x = -H + 1.6 + i * (len - 3.2) / 8 + s * 0.6, y = railY(x, 1.62, 0.55), hang = rand(0.3, 0.6);
+      stems.push(tube([V3(x, y, s * (HW + 0.2)), V3(x + 0.05, y - hang * 0.5, s * (HW + 0.28)), V3(x, y - hang, s * (HW + 0.3))], 8, 3, () => 0.012));
+      bells.push(new THREE.LatheGeometry([new THREE.Vector2(0.01, 0), new THREE.Vector2(0.09, -0.04), new THREE.Vector2(0.13, -0.16), new THREE.Vector2(0.2, -0.3), new THREE.Vector2(0.17, -0.31)], 14).translate(x, y - hang, s * (HW + 0.3))); } });
+    add(new THREE.Mesh(merge(stems), vineMat()));
+    add(new THREE.Mesh(merge(bells), glowBulb('1.0, 0.7, 0.3')));
+  };
+
+  /* ================= wood bridge C: giant leaf ================= */
+  const buildLeaf = () => {
+    const NX = 200, NZ = 40, geo = new THREE.PlaneGeometry(1, 1, NX, NZ), P = geo.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      const u = P.getX(i) + 0.5, v = P.getY(i) * 2;
+      const x = -H - 2 + u * (len + 4), half = Math.max(0.3, Math.sin(Math.PI * Math.pow(u, 0.9)) * 3.3 + 0.2), z = v * half;
+      const over = Math.max(0, Math.abs(z) - HW + 0.05), y = -0.06 + over * over * 0.55 + over * 0.15 + Math.sin(x * 0.7 + z) * 0.01 * over;
+      P.setXYZ(i, x, y, z * (1 - over * 0.12));
+    }
+    geo.computeVertexNormals();
+    add(new THREE.Mesh(geo, pmat(`
+      float z = abs(p.z);
+      float mid = exp(-z * 7.0);
+      float lat = pow(abs(sin((p.x * 0.9 - z * 0.85) * 3.14159)), 30.0) * smoothstep(0.1, 0.5, z);
+      vec2 ar = p.xz * 5.0 + fbm(p * 3.0) * 1.5; vec2 f = abs(fract(ar) - 0.5); float areole = smoothstep(0.44, 0.5, max(f.x, f.y)) * 0.6;
+      float tone = fbm(p * 0.4);
+      al = mix(vec3(0.08, 0.3, 0.05), vec3(0.24, 0.5, 0.08), tone);
+      al = mix(al, vec3(0.6, 0.78, 0.3), mid * 0.8 + lat * 0.45 + areole * 0.1);
+      float edge = smoothstep(2.6, 3.3, z); al = mix(al, vec3(0.55, 0.45, 0.12), edge * 0.6);
+      ro = mix(0.32, 0.5, areole); hh = mid * 0.03 + lat * 0.012 - areole * 0.004;
+      if (!gl_FrontFacing) { al *= 1.25; ro = 0.8; }`, { side: THREE.DoubleSide, bump: 1.2 })), { shadow: true });
+    const rib = [];
+    rib.push(tube(path(V3(-H - 4, -0.25, 0), V3(H + 2, -0.2, 0), 20, 0.25, 0, 1), 120, 14, u => 0.34 - u * 0.2, 0.04));
+    rib.push(tube([V3(-H - 4, -0.25, 0), V3(-H - 6, -0.8, 0.5), V3(-H - 7.5, -2.5, 1), V3(-H - 8, -5, 1.2)], 30, 12, () => 0.36, 0.04));
+    for (let i = 0; i < 16; i++) { const x = -H + 0.5 + i * (len - 1) / 15; [-1, 1].forEach(s => rib.push(tube([V3(x, -0.22, 0), V3(x + 0.8, -0.2, s * 1.4), V3(x + 1.5, 0.0, s * 2.6)], 12, 5, u => 0.07 * (1 - u * 0.7), 0.05))); }
+    [-len * 0.23, 0.5, len * 0.27].forEach((x, k) => [-1, 1].forEach(s => rib.push(tube([V3(x + s * 1.5, -34, s * 5 + k), V3(x + s, -16, s * 4), V3(x + s * 0.5, -5, s * 2.2), V3(x, -0.5, s * 0.4)], 60, 10, u => 0.45 - u * 0.2, 0.05))));
+    add(new THREE.Mesh(merge(rib), pmat(`
+      float st = fbm(vec3(p.x * 2.0, p.y * 0.4, p.z * 2.0)); float fib = pow(abs(sin(atan(n.z, n.x) * 14.0 + st * 3.0)), 8.0);
+      al = mix(vec3(0.18, 0.38, 0.08), vec3(0.4, 0.58, 0.16), st) - fib * 0.05; ro = 0.55; hh = fib * 0.01 + st * 0.02;
+      al = mix(al, vec3(0.5, 0.35, 0.18), smoothstep(0.6, 0.8, fbm(p * 1.5 + 2.0)) * 0.4);`)), { shadow: true });
+    const T = [], pods = [], lm = [];
+    [-1, 1].forEach(s => { const pts = []; for (let i = 0; i <= 400; i++) { const t = i / 400, x = -H + t * len, a = x * 5.0;
+      pts.push(V3(x + Math.cos(a) * 0.04, 0.7 + Math.sin(Math.PI * t) * 0.15 + Math.sin(a) * 0.1, s * (HW + 0.55) + Math.cos(a) * 0.1)); }
+      T.push(tube(pts, 900, 5, () => 0.022));
+      for (let i = 0; i <= 12; i++) { const x = -H + 1 + i * (len - 2) / 12; T.push(tube([V3(x, 0.18, s * (HW + 0.35)), V3(x + 0.2, 0.45, s * (HW + 0.5)), V3(x, 0.72, s * (HW + 0.55))], 8, 4, () => 0.028));
+        pods.push(new THREE.SphereGeometry(0.07, 10, 8).scale(1, 1.4, 1).translate(x + 0.4, 0.62, s * (HW + 0.66)));
+        for (let k = 0; k < 3; k++) lm.push(TRS(x + rand(-0.8, 0.8), 0.72, s * (HW + 0.55), rand(-0.6, 0.6), rand(0, 6.3), rand(-0.4, 0.2), rand(0.22, 0.4))); } });
+    add(new THREE.Mesh(merge(T), vineMat()), { shadow: true });
+    add(new THREE.Mesh(merge(pods), glowBulb('0.6, 1.0, 0.35')));
+    inst(leafGeo(1, 0.5, 0.25, 0.25, 6, 2), leafMat(), lm, { shadow: true });
+    const dm = []; for (let i = 0; i < 160; i++) { const x = rand(-H + 1, H - 1), z = rand(-3, 3) * (rnd() < 0.5 ? 0.6 : 1), over = Math.max(0, Math.abs(z) - HW); dm.push(TRS(x, -0.06 + over * over * 0.55 + over * 0.15 + 0.01, z, 0, 0, 0, rand(0.02, 0.06))); }
+    const dew = pmat(`al = vec3(0.75, 0.88, 0.95); ro = 0.03; em = vec3(0.25, 0.3, 0.32) * pow(1.0 - abs(n.y), 2.0);`);
+    inst(new THREE.SphereGeometry(1, 10, 6).scale(1, 0.55, 1), dew, dm);
+  };
+
+  ({ glass: buildGlass, circuit: buildCircuit, vine: buildVine, leaf: buildLeaf }[kind] || buildGlass)();
+  g.updateMatrixWorld(true); U.uInv.value.copy(g.matrixWorld).invert();
+  const _p = V3();
+  return {
+    g, U,
+    setGhost(c) { U.uGhost.value.copy(c).multiplyScalar(2.2); },
+    update() { if (!g.visible) return; _p.copy(PL.pos).applyMatrix4(U.uInv.value); U.uWalk.value.copy(_p); },
+  };
+}
 
 /* ================= GAME STATE ================= */
 const G = { state: 'loading', stage: 0, lens: -1, avail: [false, false, false, false], t: 0, stageTime: 0, shards: 0, total: 0, deaths: 0, kills: 0,
@@ -1768,15 +2133,6 @@ function die() {
   if (Math.random() < 0.5) say(['大丈夫、もう一回！'], false);
 }
 
-function tryDash(wish) {
-  if (PL.dashCD > 0 || PL.rail) return;
-  if (!PL.onGround && PL.airDash) return;
-  const d = wish.lengthSq() > 0.01 ? wish.clone().normalize() : V3(-Math.sin(PL.face), 0, -Math.cos(PL.face));
-  PL.dashDir.copy(d); PL.dashT = 0.19; PL.dashCD = 0.38; if (!PL.onGround) PL.airDash = true;
-  SFX.dash(); CAM.fovKick += 7; G.ca = Math.max(G.ca, 0.5);
-  const c = G.lens >= 0 ? hdr(LENS_COL[G.lens], 3) : new THREE.Color(2, 2, 2.4);
-  ringBurst(PL.pos, c, 18, 6, 0.4, 0.4);
-}
 
 function findWater() {
   if (G.lens !== 1) return null;
@@ -1823,7 +2179,7 @@ function stepRail(dt) {
 function spawnGhost(interval) {
   PM.gT -= 1 / 60; if (PM.gT > 0) return; PM.gT = interval;
   const g = PM.ghosts[PM.gi]; PM.gi = (PM.gi + 1) % PM.ghosts.length;
-  g.m.position.copy(PL.pos); g.m.rotation.set(PM.body.rotation.x, PM.root.rotation.y, 0); g.m.visible = true; g.life = 0.28;
+  if (typeof BOY !== 'undefined' && BOY && BOY.snapGhost) BOY.snapGhost(g); else { g.m.position.copy(PL.pos); g.m.rotation.set(PM.body.rotation.x, PM.root.rotation.y, 0); } g.m.visible = true; g.life = 0.28;
   g.m.material.color.copy(G.lens >= 0 ? LENS_COL[G.lens] : new THREE.Color(0.8, 0.85, 1)).multiplyScalar(1.3);
 }
 
@@ -1836,7 +2192,7 @@ function stepPlayer(dt) {
   PL.inv = Math.max(0, PL.inv - dt); PL.dashCD -= dt; PL.railCD -= dt;
   if (INPUT.jumpPressed) PL.jumpBuf = 0.14; else PL.jumpBuf -= dt;
   if (PL.rail) { stepRail(dt); return; }
-  if (INPUT.dashPressed) tryDash(_wish);
+  // (dash removed: only water currents and live wires speed you up)
   const water = findWater();
   if (water && !PL.water) { if (water.flow.y < 0.1) PL.vel.y = Math.max(PL.vel.y, -2.5); if (water.flow.lengthSq() < 0.01) { PL.vel.x *= 0.45; PL.vel.z *= 0.45; } SFX.splash(); burst(PL.pos, new THREE.Color(1.2, 2, 3.5), 24, 6, 0.4, 0.6, 8); PL.dashT = 0; if (PL.airSwitch && G.t - PL.lastSwitch < 1.3) { popup('SPLASH SHIFT!', LENS_HEX[1]); PL.airSwitch = false; } }
   if (!water && PL.water && PL.vel.y > 2) { burst(PL.pos, new THREE.Color(1.2, 2, 3.5), 16, 5, 0.35, 0.5, 8); }
@@ -2065,7 +2421,6 @@ addEventListener('keydown', (e) => {
   if (e.repeat) { if (KEYMAP[e.code] || e.code === 'Space') e.preventDefault(); return; }
   INPUT.keys[e.code] = true;
   if (e.code === 'Space') { INPUT.jumpPressed = true; INPUT.jumpHeld = true; e.preventDefault(); }
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') INPUT.dashPressed = true;
   const dg = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3 }[e.code];
   if (dg !== undefined) setLens(dg);
   if (e.code === 'KeyQ' || e.code === 'Digit0' || e.code === 'Backquote') setLens(-1);
@@ -2087,7 +2442,7 @@ function readMove() {
 function look(dx, dy) { CAM.yaw -= dx; CAM.pitch = clamp(CAM.pitch + dy, -0.3, 1.25); CAM.lastManual = G.t; }
 canvas.addEventListener('mousedown', (e) => {
   if (G.state !== 'play') return;
-  if (e.button === 2) { INPUT.dashPressed = true; e.preventDefault(); return; }
+  if (e.button === 2) { e.preventDefault(); return; }
   INPUT.mouseDown = true;
   if (!IS_TOUCH && document.pointerLockElement !== canvas) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { }); } catch (err) { } }
 });
@@ -2138,7 +2493,6 @@ function holdBtn(el, down, up) {
   el.addEventListener('pointerup', u); el.addEventListener('pointercancel', u);
 }
 holdBtn($('#tJump'), () => { INPUT.jumpPressed = true; INPUT.jumpHeld = true; }, () => { INPUT.jumpHeld = false; });
-holdBtn($('#tDash'), () => { INPUT.dashPressed = true; });
 document.querySelectorAll('.lens').forEach(b => { b.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); setLens(+b.dataset.l); }); });
 
 /* ================= ADVENTURER BOY (embedded model, procedural rig) ================= */
@@ -2266,6 +2620,32 @@ const BOY = (() => {
   PM.body.children.forEach(c => { c.visible = false; });
   PM.ribbon.visible = false; // the backpack replaces the old scarf trail
   PM.body.add(holder);
+  // speed afterimages: the same rigged mesh, frozen in the pose of the moment it was spawned
+  const GV = 'attribute vec4 aRig, aArm; uniform float uHipA, uKneeA, uHipB, uKneeB, uTwist, uHead, uLean, uRoll; uniform vec4 uShP, uElP, uShN, uElN; uniform vec3 uEcP, uEcN; varying vec3 vN, vV;\n' + RIG + `
+    void main() {
+      vec3 p = rigPos(position, aRig, aArm, false), n = rigPos(normal, aRig, aArm, true);
+      vec4 mv = modelViewMatrix * vec4(p, 1.0); vV = -mv.xyz; vN = normalize(normalMatrix * n);
+      gl_Position = projectionMatrix * mv;
+    }`;
+  const GF = `uniform vec3 uCol; uniform float uOp; varying vec3 vN, vV;
+    void main() { float f = 1.0 - abs(dot(normalize(vN), normalize(vV))); float k = 0.22 + 0.9 * pow(f, 2.2);
+      gl_FragColor = vec4(uCol * k * uOp, 1.0); }`;
+  const RIGU = Object.keys(U).filter(k => k !== 'uRim' && k !== 'uDbg');
+  PM.ghosts.forEach(g => {
+    scene.remove(g.m);
+    const gu = { uCol: { value: new THREE.Color(1, 1, 1) }, uOp: { value: 0 } };
+    RIGU.forEach(k => { const v = U[k].value; gu[k] = { value: v && v.clone ? v.clone() : v }; });
+    const gm = new THREE.ShaderMaterial({ uniforms: gu, vertexShader: GV, fragmentShader: GF, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const m = new THREE.Mesh(geo, gm); m.matrixAutoUpdate = false; m.frustumCulled = false; m.visible = false; m.renderOrder = 2;
+    // keep the old material-like API used by the player code (color / opacity)
+    gm.color = gu.uCol.value; Object.defineProperty(gm, 'opacity', { get: () => gu.uOp.value, set: (v) => { gu.uOp.value = v; } });
+    scene.add(m); g.m = m; g.u = gu;
+  });
+  const snapGhost = (g) => {
+    PM.root.updateMatrixWorld(true);
+    g.m.matrix.copy(mesh.matrixWorld); g.m.matrixWorldNeedsUpdate = true;
+    RIGU.forEach(k => { const v = U[k].value; if (v && v.copy) g.u[k].value.copy(v); else g.u[k].value = v; });
+  };
   // arm pose solver: targets are directions (model space, upright, +z forward, +x = the P side)
   const ROLL = 0.225;               // the sculpt leans ~13° sideways; this straightens the upper body
   const cur = ARM.map(A => ({ u: A.u.clone(), f: A.f.clone() }));
@@ -2278,7 +2658,7 @@ const BOY = (() => {
     const c = Math.cos(-roll), s = Math.sin(-roll); return v.set(v.x * c - v.y * s, v.x * s + v.y * c, v.z).normalize();
   };
   return {
-    U, LEG, ARM,
+    U, LEG, ARM, mesh, snapGhost,
     update(dt, st) {
       // st: pose targets (swing angles are "foot forward = +", relative to hanging straight down)
       const d = (u, v, k = 14) => { u.value = damp(u.value, v, k, dt); };
@@ -3352,13 +3732,13 @@ const STAGES = [
   { name: '巨大植物ジャングル', en: 'OVERGROWTH', theme: 2, lenses: [0, 1, 2], par: 620, killY: -15, intro: 2,
     build() {
       C.begin(0, 0, 'F', 0); C.h = 40;
-      const wood = { final: '#9a6a44', rough: 0.85 }, wood2 = { final: '#7d5a3c', rough: 0.85 };
+      const wood = { final: '#9a6a44', rough: 0.85 }, wood2 = { final: '#7d5a3c', rough: 0.85, model: 'leaf' }, woodVine = { ...wood, model: 'vine' };
       K.P(-8, 12, -7, 7, 0); K.start(-4, 0, 0); C.adv(12);
       K.TK(-8, 0, 0, ['緑は“生命”。[3] で緑メガネ。ツタが育つよ。', 'ツタに向かって進むと登れる！'], 6);
       // A: ivy, the first bloom and the first seed bridge
       M.climb(10, { cp: true, cpv: -4 });
       M.bloom(7, { cp: true, cpv: -4, talk: ['大きな花！ 緑メガネの時だけ咲いてる。踏むと大ジャンプ！'] });
-      M.bridge([2, 1, 2, 0], 30, wood, { cp: true, talk: ['大きな崖…このままじゃ渡れない。', 'でもこの種、色に反応してる。緑→青→緑→赤…', '順番に“見て”みよう。世界を、つくるんだ！'] });
+      M.bridge([2, 1, 2, 0], 30, woodVine, { cp: true, talk: ['大きな崖…このままじゃ渡れない。', 'でもこの種、色に反応してる。緑→青→緑→赤…', '順番に“見て”みよう。世界を、つくるんだ！'] });
       // B: leaves and red perches, swaying left and right
       K.TK(-4, 0, C.y, ['緑の葉と赤い足場が交互に…ジャンプ中に切り替えて！'], 8);
       M.alt([2, 0, 2, 0], { zig: 2, dy: 1 });
@@ -3436,7 +3816,7 @@ const STAGES = [
   { name: '電脳都市ネオングリッド', en: 'NEON GRID', theme: 3, lenses: [0, 1, 2, 3], par: 720, killY: -20, intro: 3,
     build() {
       C.begin(0, 0, 'F', 0); C.h = 30;
-      const neon = { final: '#2a2e48', metal: 0.7, rough: 0.2, emi: '#5a1a8a' };
+      const neon = { final: '#2a2e48', metal: 0.7, rough: 0.2, emi: '#5a1a8a', model: 'glass' }, neon2 = { ...neon, model: 'circuit' };
       K.P(-8, 12, -6, 6, 0); K.start(-5, 0, 0); C.adv(12);
       K.TK(-9, 0, 0, ['黄は“電気”。[4] で黄メガネにすると電線が見える。', '電線に触れたら、高速で滑走！'], 6);
       // A: first wire, first lift, first generator
@@ -3472,7 +3852,7 @@ const STAGES = [
       M.channelTurn(24, 'L', 26, { cp: true });
       // K: a wire that weaves left and right, then a second bridge
       M.railRun(64, 6, { pts: [[-4, 0, 1.3], [14, 5, 2.5], [30, -5, 3.7], [46, 5, 5], [64, 0, 7.3]], cp: true, talk: ['くねくね電線！ 振り落とされないでね。'], n: 'weave' });
-      M.bridge([0, 3, 2, 1], 28, neon, { cp: true, talk: ['今度の橋は赤→黄→緑→青！'] });
+      M.bridge([0, 3, 2, 1], 28, neon2, { cp: true, talk: ['今度の橋は赤→黄→緑→青！'] });
       // L: the long way round — left, wire bend, twin generators, hurdles
       M.corner(3, 16, 'L', {});
       M.railTurn(28, 'R', 30, 4, { cp: true });
@@ -3790,6 +4170,13 @@ function updateSeqs(dt) {
     if (S.phase === 1 && a < 2.5) { S.tMat.color.copy(LENS_COL[steps[1]]).multiplyScalar(3); for (let k = 0; k < 6; k++) { const t = S.tendrils[k % 2]; const p = t.pts[(Math.random() * t.pts.length) | 0]; PFX.emit(p.x, p.y + 0.1, p.z, 0, rand(-0.5, 0.5), -rand(4, 10), hdr(LENS_COL[steps[1]], 3), 0.45, 0.8, 0, 0.5); } }
     if (S.phase === 1 && a >= 2.5) S.tMat.color.copy(LENS_COL[steps[0]]).multiplyScalar(2.5);
     if (S.phase >= 2) S.planks.forEach((p, i) => { const t = clamp((S.phase === 2 ? a : 9) * 1.4 - i * 0.06, 0, 1); p.visible = t > 0; const e = t < 1 ? 1 - Math.pow(1 - t, 3) * Math.cos(t * 9) : 1; p.scale.set(1, Math.max(0.001, e), Math.max(0.001, e)); });
+    if (S.lb) { // light bridge: grows in the lens colour on the 3rd step, materialises on the 4th
+      S.lb.g.visible = S.phase >= 2;
+      S.lb.U.uGrow.value = S.phase === 2 ? clamp(a / 2.2, 0, 1) : S.phase > 2 ? 1 : 0;
+      S.lb.U.uSolid.value = S.phase === 3 ? clamp(a / 0.8, 0, 1) : 0;
+      if (S.phase === 3 && a > 0.8) S.tendrils.forEach(t => { t.m.visible = false; });
+      S.lb.update();
+    }
     if (S.phase === 3) {
       if (a < 0.05) S.planks.forEach(p => p.material = S.pMatFinal);
       if (S.style.rainbow) { S.pMatFinal.emissive.setHSL((G.t * 0.1) % 1, 0.9, 0.6); S.pMatFinal.emissiveIntensity = 0.5; }
@@ -4035,4 +4422,5 @@ requestAnimationFrame(frame);
   }
 })();
 </script>
+
 </html>
