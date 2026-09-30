@@ -29,7 +29,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 
 /* ---------- HUD ---------- */
 #hud{position:absolute;inset:0;pointer-events:none}
-.hud-top{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+.hud-top{position:absolute;left:0;right:0;top:0;z-index:6;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
   padding:calc(env(safe-area-inset-top,0px) + 14px) calc(env(safe-area-inset-right,0px) + 18px) 0 calc(env(safe-area-inset-left,0px) + 18px)}
 .stage-tag{font:700 11px/1 var(--f-num);letter-spacing:.28em;color:var(--dim)}
 .stage-name{font:700 clamp(15px,2.2vw,22px)/1.2 var(--f-body);margin-top:6px;text-shadow:0 2px 12px rgba(0,0,0,.5)}
@@ -39,7 +39,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 .heart{width:14px;height:14px;transform:rotate(45deg);border-radius:3px;background:linear-gradient(135deg,#fff,#ffd0dc);box-shadow:0 0 10px rgba(255,90,130,.8)}
 .heart.off{background:rgba(255,255,255,.12);box-shadow:none}
 .shard-ic{width:12px;height:12px;transform:rotate(45deg);background:conic-gradient(var(--red),var(--yellow),var(--green),var(--blue),var(--red));border-radius:2px}
-#pauseBtn{pointer-events:auto;width:38px;height:38px;border-radius:50%;background:var(--glass);border:1px solid var(--line);font:700 13px var(--f-num);display:grid;place-items:center}
+#pauseBtn{position:relative;z-index:7;touch-action:none;pointer-events:auto;width:38px;height:38px;border-radius:50%;background:var(--glass);border:1px solid var(--line);font:700 13px var(--f-num);display:grid;place-items:center}
 
 #dialog{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translate(-50%,-8px);opacity:0;transition:opacity .25s,transform .25s;
   display:flex;gap:12px;align-items:center;max-width:min(560px,calc(100vw - 32px));padding:10px 16px 10px 10px;border-radius:16px;
@@ -3768,6 +3768,8 @@ $('#bSelect').onclick = () => { refreshTitle(); $('#title').hidden = true; $('#s
 $('#bHow').onclick = () => { $('#title').hidden = true; $('#howto').hidden = false; $('#keysPC').hidden = IS_TOUCH; $('#keysTouch').hidden = !IS_TOUCH; };
 document.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { if (G.state === 'paused') { $('#howto').hidden = true; $('#pause').hidden = false; return; } hideScreens(); $('#title').hidden = false; });
 $('#pauseBtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); pauseGame(); });
+$('#pauseBtn').addEventListener('touchstart', (e) => { e.stopPropagation(); e.preventDefault(); pauseGame(); }, { passive: false });
+$('#pauseBtn').addEventListener('click', (e) => { e.stopPropagation(); pauseGame(); });
 $('#bResume').onclick = resumeGame;
 $('#bRetryP').onclick = () => { resumeGame(); die(); G.deaths--; };
 $('#bRestartP').onclick = () => startStage(G.stage);
