@@ -728,19 +728,24 @@ class Particles {
     this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
     this.col[i * 3] = c.r; this.col[i * 3 + 1] = c.g; this.col[i * 3 + 2] = c.b;
     this.size[i] = this.size0[i] = size; this.life[i] = this.maxLife[i] = life; this.grav[i] = grav; this.drag[i] = drag; this.alpha[i] = 1;
+    this.emitted = true; this.live = true;
   }
   update(dt) {
-    const P = this.pos, Vv = this.vel;
+    if (!this.live) return; // nothing alive and the buffers already hold the cleared state
+    const P = this.pos, Vv = this.vel; let alive = 0;
     for (let i = 0; i < this.max; i++) {
-      if (this.life[i] <= 0) { if (this.alpha[i] !== 0) this.alpha[i] = 0; continue; }
+      if (this.life[i] <= 0) { if (this.alpha[i] !== 0) { this.alpha[i] = 0; this.size[i] = 0; } continue; }
+      alive++;
       this.life[i] -= dt; const k = Math.exp(-this.drag[i] * dt);
       Vv[i * 3 + 1] -= this.grav[i] * dt; Vv[i * 3] *= k; Vv[i * 3 + 1] *= k; Vv[i * 3 + 2] *= k;
       P[i * 3] += Vv[i * 3] * dt; P[i * 3 + 1] += Vv[i * 3 + 1] * dt; P[i * 3 + 2] += Vv[i * 3 + 2] * dt;
       const t = Math.max(0, this.life[i] / this.maxLife[i]); this.alpha[i] = t < 0.7 ? t / 0.7 : 1; this.size[i] = this.size0[i] * (0.4 + 0.6 * t);
     }
-    const g = this.geo.attributes; g.position.needsUpdate = g.aColor.needsUpdate = g.aSize.needsUpdate = g.aAlpha.needsUpdate = true;
+    const g = this.geo.attributes; g.position.needsUpdate = g.aSize.needsUpdate = g.aAlpha.needsUpdate = true;
+    if (this.emitted) { g.aColor.needsUpdate = true; this.emitted = false; }
+    if (!alive) this.live = false; // this frame's upload clears the last ones; then stay idle until the next emit
   }
-  clear() { this.life.fill(0); }
+  clear() { this.life.fill(0); this.live = true; }
 }
 const PFX = new Particles(IS_TOUCH ? 2200 : 4000); scene.add(PFX.pts);
 const _c = new THREE.Color();
@@ -940,6 +945,8 @@ const B = {
   water(x0, y0, z0, x1, y1, z1, flow = [0, 0, 0]) {
     const min = V3(Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1)), max = V3(Math.max(x0, x1), Math.max(y0, y1), Math.max(z0, z1));
     const f = V3(...flow);
+    const flowG = FLOW.build(min, max, f);
+    if (flowG) { W.g.add(flowG); W.waters.push({ min, max, flow: f, mesh: flowG }); return; }
     const m = waterMat(f); W.dispose.push(m);
     const s = max.clone().sub(min);
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(s.x, s.y, s.z, Math.max(1, s.x | 0), Math.max(1, s.y | 0), Math.max(1, s.z | 0)), m);
@@ -1647,6 +1654,16 @@ const ELEC = (() => {
     addRail(R) { rails.push(R); }, addFence(F) { fences.push(F); }, addCoil(K) { coils.push(K); } };
 })();
 
+// shared 256x256 lattice for the bridges' texture-based value noise (built once)
+let _bridgeNz = null;
+function bridgeNoiseTex() {
+  if (_bridgeNz) return _bridgeNz;
+  const N = 256, r = new Uint8Array(N * N), d = new Uint8Array(N * N * 4);
+  let sd = 1234567; for (let i = 0; i < N * N; i++) { sd = (sd * 16807) % 2147483647; r[i] = sd & 255; }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const k = (y * N + x) * 4; d[k] = r[y * N + x]; d[k + 1] = r[((y + 17) & 255) * N + ((x + 37) & 255)]; d[k + 3] = 255; }
+  const t = new THREE.DataTexture(d, N, N, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return (_bridgeNz = t);
+}
 /* ================= SEED BRIDGE MODELS =================
    The colour-genesis bridges get a proper model per style.model:
      'glass'   — Neon Grid, hard-light glass deck (light-bridge design A)
@@ -1658,7 +1675,7 @@ const ELEC = (() => {
    growth front and shows it in the lens colour, uSolid (0..1) materialises it. */
 function makeLightBridge(br, ghostCol, kind = 'glass') {
   const len = br.z0 - br.z1, H = len / 2, HW = br.w / 2, F = (v) => v.toFixed(3);
-  const U = { uTime: GU.time, uGrow: { value: 0 }, uSolid: { value: 0 }, uGhost: { value: ghostCol.clone().multiplyScalar(2.2) }, uWalk: { value: V3(0, -99, 0) }, uInv: { value: new THREE.Matrix4() } };
+  const U = { uNz: { value: bridgeNoiseTex() }, uTime: GU.time, uGrow: { value: 0 }, uSolid: { value: 0 }, uGhost: { value: ghostCol.clone().multiplyScalar(2.2) }, uWalk: { value: V3(0, -99, 0) }, uInv: { value: new THREE.Matrix4() } };
   let seed = 11 + Math.round(Math.abs(br.z0)); const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
   const rand = (a, b) => a + rnd() * (b - a);
   const nz = (x) => Math.sin(x * 1.7) * 0.5 + Math.sin(x * 3.1 + 1.3) * 0.3 + Math.sin(x * 7.3 + 2.1) * 0.2;
@@ -1666,15 +1683,21 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
     float h1(float n){ return fract(sin(n) * 43758.5453); }
     float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+    // 3D value noise from one texture fetch: R holds a random lattice, G the same lattice offset by (37, 17),
+    // so a bilinear fetch returns two neighbouring z-layers at once (instead of 8 hashes per call)
+    uniform sampler2D uNz;
     float vn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
-      return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
-                 mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+      vec2 uv = (i.xy + vec2(37.0, 17.0) * i.z) + f.xy; vec2 rg = texture2D(uNz, (uv + 0.5) / 256.0).xy;
+      return mix(rg.x, rg.y, f.z); }
     float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= 0.5; } return s; }`;
   const GROW = `
-    float gx = (vW.x + ${F(H)}) / ${F(len)};
-    float gj = uGrow * 1.06 - 0.03 + (vn(vW * 2.0) - 0.5) * 0.04;
-    if (gx > gj) discard;
-    float front = exp(-abs(gx - gj) * 65.0) * step(uGrow, 0.999);`;
+    float front = 0.0;
+    if (uGrow < 0.999) {
+      float gx = (vW.x + ${F(H)}) / ${F(len)};
+      float gj = uGrow * 1.06 - 0.03 + (vn(vW * 2.0) - 0.5) * 0.04;
+      if (gx > gj) discard;
+      front = exp(-abs(gx - gj) * 65.0);
+    }`;
   const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
 
   // unlit, self-lit parts (light bridges)
@@ -1686,8 +1709,8 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
         ${o.frag}
         void main(){ ${GROW}
           float a = 1.0; vec3 col = shade(a);
-          float lum = dot(col, vec3(0.3, 0.5, 0.2));
-          col = mix(uGhost * (0.12 + lum * 1.4), col, uSolid) + uGhost * front * 3.0;
+          if (uSolid < 0.999 || front > 0.0) { float lum = dot(col, vec3(0.3, 0.5, 0.2));
+          col = mix(uGhost * (0.12 + lum * 1.4), col, uSolid) + uGhost * front * 3.0; }
           gl_FragColor = vec4(col, ${o.additive ? '1.0' : 'a'}); }`;
     const m = new THREE.ShaderMaterial({
       uniforms: U, transparent: !!(o.additive || o.alpha), depthWrite: !o.additive, blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -1728,12 +1751,31 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
           { vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
             vec3 gr = sign(det) * (dFdx(hh) * r1 + dFdy(hh) * r2); normal = normalize(abs(det) * normal - gr * ${(o.bump ?? 1).toFixed(2)}); }`)
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += em;')
-        .replace('#include <output_fragment>', `{ float lum = dot(outgoingLight, vec3(0.3, 0.5, 0.2));
+        .replace('#include <output_fragment>', `if (uSolid < 0.999 || front > 0.0) { float lum = dot(outgoingLight, vec3(0.3, 0.5, 0.2));
             outgoingLight = mix(uGhost * (0.25 + lum * 0.8), outgoingLight, uSolid) + uGhost * front * 3.0; }
           #include <output_fragment>`);
     };
     m.customProgramCacheKey = () => key;
     W.dispose.push(m); return m;
+  };
+
+  // shadow caster depth pass with the same growth front, so an unfinished bridge does not cast a finished shadow
+  let depthM = null;
+  const depthMat = () => {
+    if (depthM) return depthM;
+    depthM = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    depthM.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      sh.vertexShader = 'uniform mat4 uInv; varying vec3 vW;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+        #ifdef USE_INSTANCING
+          vW = (uInv * modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+        #else
+          vW = (uInv * modelMatrix * vec4(transformed, 1.0)).xyz;
+        #endif`);
+      sh.fragmentShader = 'uniform float uGrow; varying vec3 vW;\n' + NOISE + '\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + GROW);
+    };
+    depthM.customProgramCacheKey = () => 'sbd' + hash(GROW);
+    W.dispose.push(depthM); return depthM;
   };
 
   /* ---------- geometry helpers ---------- */
@@ -1775,7 +1817,11 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
     return pts; };
 
   const g = new THREE.Group(); g.position.set(br.x, br.y, (br.z0 + br.z1) / 2); g.rotation.y = Math.PI / 2; g.visible = false; W.g.add(g);
-  const add = (m, o = {}) => { m.frustumCulled = false; if (o.ro) m.renderOrder = o.ro; if (o.shadow) { m.castShadow = true; m.receiveShadow = true; } g.add(m); return m; };
+  const detail = [];
+  const add = (m, o = {}) => { m.frustumCulled = !m.isInstancedMesh; if (o.ro) m.renderOrder = o.ro;
+    if (o.recv) m.receiveShadow = true;
+    if (o.shadow) { m.castShadow = true; m.receiveShadow = true; if (m.material.isMeshStandardMaterial) m.customDepthMaterial = depthMat(); }
+    if (o.detail) detail.push(m); g.add(m); return m; };
   const inst = (geo, mat, ms, o) => { const m = new THREE.InstancedMesh(geo, mat, ms.length); ms.forEach((M, i) => m.setMatrixAt(i, M)); return add(m, o); };
 
   /* ================= light bridge A: hard-light glass ================= */
@@ -1929,7 +1975,7 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
     [-1, 1].forEach(e => [-1, 1].forEach(s => { posts.push(tube([V3(e * (H + 0.4), -0.8, s * (HW + 0.2)), V3(e * (H + 0.42), 0.8, s * (HW + 0.22)), V3(e * (H + 0.38), 1.75, s * (HW + 0.2))], 10, 12, u => 0.24 - u * 0.05, 0.1));
       posts.push(new THREE.SphereGeometry(0.22, 12, 8).scale(1, 0.7, 1).translate(e * (H + 0.38), 1.78, s * (HW + 0.2))); }));
     add(new THREE.Mesh(merge(posts), pmat(BARK, { bump: 1.4 })), { shadow: true });
-    const cable = (y0, sag, zs, r, ph) => { for (let k = 0; k < 3; k++) { const pts = []; for (let i = 0; i <= 60; i++) { const t = i / 60, x = -H - 0.4 + t * (len + 0.8), th = x * 2.2 + k * 2.09 + ph; pts.push(V3(x, y0 - Math.sin(Math.PI * t) * sag + Math.sin(th) * r, zs + Math.cos(th) * r)); } L.push(tube(pts, 240, 5, () => r * 0.75, 0.05)); } };
+    const cable = (y0, sag, zs, r, ph) => { for (let k = 0; k < 3; k++) { const pts = []; for (let i = 0; i <= 60; i++) { const t = i / 60, x = -H - 0.4 + t * (len + 0.8), th = x * 2.2 + k * 2.09 + ph; pts.push(V3(x, y0 - Math.sin(Math.PI * t) * sag + Math.sin(th) * r, zs + Math.cos(th) * r)); } L.push(tube(pts, 160, 5, () => r * 0.75, 0.05)); } };
     [-1, 1].forEach(s => { cable(1.62, 0.55, s * (HW + 0.2), 0.045, s); cable(0.95, 0.25, s * (HW + 0.12), 0.03, s + 1); });
     const railY = (x, y0, sag) => y0 - Math.sin(Math.PI * (x + H + 0.4) / (len + 0.8)) * sag;
     for (let i = 0; i <= NP; i += 2) { const x = -H + i * pw; [-1, 1].forEach(s => {
@@ -1939,19 +1985,19 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
         L.push(tube([V3(x + pw * 2, railY(x + pw * 2, 1.62, 0.55), s * (HW + 0.2)), V3(x + pw * 1.1, railY(x, 0.95, 0.25), s * (HW + 0.14)), V3(x, -0.12, s * (HW + 0.08))], 10, 4, () => 0.016));
       }
       const pts = []; for (let k = 0; k <= 36; k++) { const a = k / 36 * Math.PI * 6; pts.push(V3(x + pw * 0.5 + (k / 36 - 0.5) * 0.18, -0.13 + Math.sin(a) * 0.15, s * (HW - 0.25) + Math.cos(a) * 0.17)); }
-      if (i < NP) L.push(tube(pts, 72, 4, () => 0.018));
+      if (i < NP) L.push(tube(pts, 44, 4, () => 0.018));
     }); }
-    add(new THREE.Mesh(merge(L), vineMat()), { shadow: true });
+    add(new THREE.Mesh(merge(L), vineMat()), { recv: true });
     const lm = [];
     [-1, 1].forEach(s => { for (let i = 0; i < 90; i++) { const x = rand(-H, H), top = rnd() < 0.6; const y = top ? railY(x, 1.62, 0.55) : railY(x, 0.95, 0.25);
       lm.push(TRS(x, y, s * (HW + (top ? 0.2 : 0.12)), rand(-0.8, 0.8), rand(0, 6.3), rand(-0.6, 0.2), rand(0.18, 0.32))); } });
-    inst(leafGeo(1, 0.5, 0.25, 0.25, 6, 2), leafMat(), lm, { shadow: true });
+    inst(leafGeo(1, 0.5, 0.25, 0.25, 6, 2), leafMat(), lm, { detail: true });
     const bells = [], stems = [];
     [-1, 1].forEach(s => { for (let i = 0; i < 9; i++) { const x = -H + 1.6 + i * (len - 3.2) / 8 + s * 0.6, y = railY(x, 1.62, 0.55), hang = rand(0.3, 0.6);
       stems.push(tube([V3(x, y, s * (HW + 0.2)), V3(x + 0.05, y - hang * 0.5, s * (HW + 0.28)), V3(x, y - hang, s * (HW + 0.3))], 8, 3, () => 0.012));
       bells.push(new THREE.LatheGeometry([new THREE.Vector2(0.01, 0), new THREE.Vector2(0.09, -0.04), new THREE.Vector2(0.13, -0.16), new THREE.Vector2(0.2, -0.3), new THREE.Vector2(0.17, -0.31)], 14).translate(x, y - hang, s * (HW + 0.3))); } });
-    add(new THREE.Mesh(merge(stems), vineMat()));
-    add(new THREE.Mesh(merge(bells), glowBulb('1.0, 0.7, 0.3')));
+    add(new THREE.Mesh(merge(stems), vineMat()), { detail: true });
+    add(new THREE.Mesh(merge(bells), glowBulb('1.0, 0.7, 0.3')), { detail: true });
   };
 
   /* ================= wood bridge C: giant leaf ================= */
@@ -1987,27 +2033,194 @@ function makeLightBridge(br, ghostCol, kind = 'glass') {
     const T = [], pods = [], lm = [];
     [-1, 1].forEach(s => { const pts = []; for (let i = 0; i <= 400; i++) { const t = i / 400, x = -H + t * len, a = x * 5.0;
       pts.push(V3(x + Math.cos(a) * 0.04, 0.7 + Math.sin(Math.PI * t) * 0.15 + Math.sin(a) * 0.1, s * (HW + 0.55) + Math.cos(a) * 0.1)); }
-      T.push(tube(pts, 900, 5, () => 0.022));
+      T.push(tube(pts, 520, 5, () => 0.022));
       for (let i = 0; i <= 12; i++) { const x = -H + 1 + i * (len - 2) / 12; T.push(tube([V3(x, 0.18, s * (HW + 0.35)), V3(x + 0.2, 0.45, s * (HW + 0.5)), V3(x, 0.72, s * (HW + 0.55))], 8, 4, () => 0.028));
         pods.push(new THREE.SphereGeometry(0.07, 10, 8).scale(1, 1.4, 1).translate(x + 0.4, 0.62, s * (HW + 0.66)));
         for (let k = 0; k < 3; k++) lm.push(TRS(x + rand(-0.8, 0.8), 0.72, s * (HW + 0.55), rand(-0.6, 0.6), rand(0, 6.3), rand(-0.4, 0.2), rand(0.22, 0.4))); } });
-    add(new THREE.Mesh(merge(T), vineMat()), { shadow: true });
-    add(new THREE.Mesh(merge(pods), glowBulb('0.6, 1.0, 0.35')));
-    inst(leafGeo(1, 0.5, 0.25, 0.25, 6, 2), leafMat(), lm, { shadow: true });
+    add(new THREE.Mesh(merge(T), vineMat()));
+    add(new THREE.Mesh(merge(pods), glowBulb('0.6, 1.0, 0.35')), { detail: true });
+    inst(leafGeo(1, 0.5, 0.25, 0.25, 6, 2), leafMat(), lm, { detail: true });
     const dm = []; for (let i = 0; i < 160; i++) { const x = rand(-H + 1, H - 1), z = rand(-3, 3) * (rnd() < 0.5 ? 0.6 : 1), over = Math.max(0, Math.abs(z) - HW); dm.push(TRS(x, -0.06 + over * over * 0.55 + over * 0.15 + 0.01, z, 0, 0, 0, rand(0.02, 0.06))); }
     const dew = pmat(`al = vec3(0.75, 0.88, 0.95); ro = 0.03; em = vec3(0.25, 0.3, 0.32) * pow(1.0 - abs(n.y), 2.0);`);
-    inst(new THREE.SphereGeometry(1, 10, 6).scale(1, 0.55, 1), dew, dm);
+    inst(new THREE.SphereGeometry(1, 7, 4).scale(1, 0.55, 1), dew, dm, { detail: true });
   };
 
   ({ glass: buildGlass, circuit: buildCircuit, vine: buildVine, leaf: buildLeaf }[kind] || buildGlass)();
   g.updateMatrixWorld(true); U.uInv.value.copy(g.matrixWorld).invert();
-  const _p = V3();
+  const _p = V3(); let lastNear = true;
   return {
     g, U,
     setGhost(c) { U.uGhost.value.copy(c).multiplyScalar(2.2); },
-    update() { if (!g.visible) return; _p.copy(PL.pos).applyMatrix4(U.uInv.value); U.uWalk.value.copy(_p); },
+    update() { if (!g.visible) return; _p.copy(PL.pos).applyMatrix4(U.uInv.value); U.uWalk.value.copy(_p);
+      const near = camera.position.distanceToSquared(g.position) < 85 * 85; if (near !== lastNear) { lastNear = near; detail.forEach(m => { m.visible = near; }); } },
   };
 }
+
+/* ================= FLOWING WATER (design A: "liquid tube") =================
+   Currents are no longer drawn as boxes. A horizontal current becomes a capsule of water along its flow, a rising current a
+   column that boils over into a crown. The collision volume is unchanged (the box in W.waters); only the look is replaced.
+   One mesh + one shader per current, spray droplets animated entirely on the GPU, one shared 256² noise lattice. */
+const FLOW = (() => {
+  const U = () => ({
+    uNz: { value: bridgeNoiseTex() }, uTime: GU.time, uOn: LU[1].on, uPrev: LU[1].prev, uWaveR: GU.waveR, uOrigin: GU.origin, uLCol: { value: LENS_COL[1] },
+    uTop: skyU.uTop, uHor: skyU.uHor, uBot: skyU.uBot, uSunDir: skyU.uSunDir, uSunCol: skyU.uSunCol,
+  });
+  const COMMON = `
+    uniform sampler2D uNz; uniform float uTime, uOn, uPrev, uWaveR; uniform vec3 uOrigin, uLCol, uTop, uHor, uBot, uSunDir, uSunCol;
+    float vn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+      vec2 uv = (i.xy + vec2(37.0, 17.0) * i.z) + f.xy; vec2 rg = texture2D(uNz, (uv + 0.5) / 256.0).xy; return mix(rg.x, rg.y, f.z); }
+    float fbm(vec3 p){ return vn(p) * 0.5 + vn(p * 2.03) * 0.25 + vn(p * 4.1) * 0.125 + vn(p * 8.3) * 0.0625; }`;
+  const FRAG_LIB = `
+    vec3 sky(vec3 d){ float y = d.y; vec3 c = y > 0.0 ? mix(uHor, uTop, pow(y, 0.55)) : mix(uHor, uBot, pow(-y, 0.45));
+      float s = max(dot(d, normalize(uSunDir)), 0.0); c += uSunCol * (pow(s, 700.0) * 24.0 + pow(s, 40.0) * 0.4); return c; }
+    float caustic(vec3 q){ float a = 1.0 - abs(vn(q) * 2.0 - 1.0), b = 1.0 - abs(vn(q * 1.7 + 11.0) * 2.0 - 1.0); return pow(min(a, b), 7.0) * 1.6 + pow(a * b, 10.0); }
+    vec4 water(vec3 N, vec3 V, float thick, float caus, float foam){
+      float F = 0.02 + 0.98 * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 5.0);
+      vec3 body = mix(vec3(0.05, 0.62, 0.78), vec3(0.01, 0.12, 0.36), thick);
+      vec3 col = body * (0.55 + caus * 1.4) + vec3(0.5, 0.95, 1.0) * caus * caus * 0.9;
+      col = mix(col, sky(reflect(-V, N)), F * 0.8);
+      col = mix(col, vec3(0.95, 0.97, 1.0) * 1.1, foam);
+      return vec4(col, clamp(0.62 + thick * 0.3 + F * 0.4 + foam, 0.0, 1.0)); }
+    // the same lens behaviour as every other blue object: ghost outline when blue is off, the switching wave sweeping through
+    vec4 lens(vec4 c, vec3 wp, float rim){
+      float lD = distance(wp, uOrigin), lIn = 1.0 - smoothstep(uWaveR - 3.0, uWaveR, lD), st = mix(uPrev, uOn, lIn);
+      float band = exp(-abs(lD - uWaveR) * 0.6) * (1.0 - smoothstep(60.0, 140.0, uWaveR)) * abs(uOn - uPrev);
+      float scan = 0.5 + 0.5 * sin(wp.y * 10.0 - uTime * 4.0);
+      vec3 gp = abs(fract(wp * 0.5) - 0.5); float grid = smoothstep(0.44, 0.5, max(gp.x, max(gp.y, gp.z)));
+      vec3 ghostC = uLCol * (0.35 * scan + 1.8 * rim + 0.9 * grid) + uLCol * 0.1; float ghostA = 0.02 + 0.035 * scan + 0.3 * rim + 0.16 * grid;
+      return vec4(mix(ghostC, c.rgb, st) + uLCol * band * 4.0, clamp(mix(ghostA, c.a, st) + band * 0.8, 0.0, 1.0)); }`;
+  const mat = (o) => {
+    const m = new THREE.ShaderMaterial({
+      uniforms: Object.assign(U(), THREE.UniformsUtils.clone(THREE.UniformsLib.fog)), fog: true, transparent: true, depthWrite: false,
+      side: o.side ?? THREE.DoubleSide, blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      vertexShader: COMMON + `
+        #include <fog_pars_vertex>
+        varying vec3 vW, vN; varying vec2 vUv;
+        void main(){ vec3 p = position, nrm = normal; vec2 a = uv;
+          ${o.vert || ''}
+          vUv = uv; vec4 w = modelMatrix * vec4(p, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * nrm);
+          vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+          #include <fog_vertex>
+        }`,
+      fragmentShader: COMMON + FRAG_LIB + `
+        #include <fog_pars_fragment>
+        varying vec3 vW, vN; varying vec2 vUv;
+        ${o.frag}
+        void main(){ vec4 c = shade(); gl_FragColor = c;
+          #include <fog_fragment>
+        }`,
+    });
+    m.customProgramCacheKey = () => 'flow' + o.key;
+    return m; // shared by every stage, never disposed
+  };
+  // surface: travelling waves, a detail normal from scrolling noise, swimming caustics, foam streaks along the current
+  const SURF = (q0) => `vec4 shade(){
+      vec3 V = normalize(cameraPosition - vW), N0 = normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0), N = N0;
+      float s = vUv.x, th = vUv.y * 6.28318;
+      vec3 q = ${q0};
+      float h0 = fbm(q), hx = fbm(q + vec3(0.08, 0.0, 0.0)), hy = fbm(q + vec3(0.0, 0.08, 0.0));
+      vec3 T = normalize(cross(N, vec3(0.31, 0.52, 0.8))), B = cross(N, T);
+      N = normalize(N + (T * (h0 - hx) + B * (h0 - hy)) * 5.0);
+      float thick = pow(clamp(abs(dot(N0, V)), 0.0, 1.0), gl_FrontFacing ? 0.6 : 1.2);
+      float cs = caustic(vec3(s * 0.8 - uTime * 4.5, th * 1.2, uTime * 0.6)) * thick;
+      float streak = smoothstep(0.62, 0.8, vn(vec3(s * 0.25 - uTime * 3.2, th * 6.0, 0.0))) * (0.4 + 0.6 * vn(vec3(s * 3.0 - uTime * 18.0, th * 12.0, 1.0)));
+      float rimFoam = smoothstep(0.55, 0.95, 1.0 - thick) * 0.25 * vn(vec3(s * 2.0 - uTime * 10.0, th * 9.0, 2.0));
+      vec4 c = water(N, V, thick, cs, clamp(streak * 0.55 + rimFoam, 0.0, 1.0));
+      if (!gl_FrontFacing) c.a *= 0.55;
+      return lens(c, vW, pow(1.0 - abs(dot(N0, V)), 2.5)); }`;
+  let M = null;
+  const mats = () => M || (M = {
+    tube: mat({ key: 'tube', vert: `float s = a.x, th = a.y * 6.28318;
+        p += nrm * (sin(th * 3.0 + s * 0.9 - uTime * 7.0) * 0.05 + (vn(vec3(s * 0.7 - uTime * 5.0, th * 1.3, uTime * 0.7)) - 0.5) * 0.22);`,
+      frag: SURF('vec3(s * 1.2 - uTime * 6.0, th * 2.0, uTime * 0.5)') }),
+    col: mat({ key: 'col', vert: `float s = a.x, th = a.y * 6.28318;
+        p += nrm * (sin(th * 4.0 + s * 1.3 - uTime * 9.0) * 0.07 + (vn(vec3(th * 1.3, s * 0.5 - uTime * 6.0, uTime * 0.8)) - 0.5) * 0.35 + sin(th * 2.0 + s * 0.35 - uTime * 3.0) * 0.12);`,
+      frag: SURF('vec3(th * 2.0 + s * 0.25, s * 1.0 - uTime * 7.0, uTime * 0.5)') }),
+    core: mat({ key: 'core', additive: true, side: THREE.FrontSide, frag: `vec4 shade(){ vec3 V = normalize(cameraPosition - vW); float f = pow(abs(dot(normalize(vN), V)), 2.0);
+        float c = caustic(vec3(vUv.x * 0.6 - uTime * 3.5, vUv.y * 6.0, uTime * 0.4)); vec4 o = lens(vec4(vec3(0.2, 0.7, 0.9) * f * (0.08 + c * 0.35), 1.0), vW, 0.0); return vec4(o.rgb * uOn, 1.0); }` }),
+    crown: mat({ key: 'crown', vert: `float n = vn(vec3(p.x * 0.8, p.z * 0.8 + uTime * 2.0, uTime * 1.5)); p.y *= 0.45 + 0.3 * n; p += nrm * (n - 0.5) * 0.5;`,
+      frag: `vec4 shade(){ vec3 V = normalize(cameraPosition - vW), N = normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0); float f = fbm(vW * 1.2 + vec3(0.0, uTime * 3.0, 0.0));
+        return lens(water(N, V, 0.3, 0.2, smoothstep(0.45, 0.75, f) * 0.8), vW, pow(1.0 - abs(dot(N, V)), 2.5)); }` }),
+    spray: new THREE.ShaderMaterial({ uniforms: Object.assign({ uScale: PFX.mat.uniforms.uScale }, U()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: `uniform float uTime, uScale, uOn; attribute vec3 aV; attribute vec4 aP; varying float vA;
+        void main(){ float t = fract(uTime / aP.y + aP.x), age = t * aP.y;
+          vec3 p = position + aV * age + vec3(0.0, -0.5 * aP.w * age * age, 0.0);
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); vA = smoothstep(0.0, 0.08, t) * (1.0 - t) * uOn;
+          gl_PointSize = vA > 0.001 ? aP.z * (0.6 + t * 0.8) * uScale / max(-mv.z, 0.1) : 0.0; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.1, d) * vA; if (a < 0.003) discard; gl_FragColor = vec4(vec3(0.75, 0.9, 1.0) * a * 1.3, 1.0); }` }),
+  });
+
+  // generic swept surface: centre line along `axis`, elliptical section (r1 across-up, r2 across-side); returns geometry with outward normals
+  function sweep(nl, rs, pt) {
+    const pos = [], nor = [], uv = [], idx = [];
+    for (let i = 0; i <= nl; i++) for (let j = 0; j <= rs; j++) { const r = pt(i / nl, j / rs); pos.push(r.p.x, r.p.y, r.p.z); nor.push(r.n.x, r.n.y, r.n.z); uv.push(r.s, j / rs); }
+    for (let i = 0; i < nl; i++) for (let j = 0; j < rs; j++) { const a = i * (rs + 1) + j, b = a + rs + 1; idx.push(a, a + 1, b, b, a + 1, b + 1); }
+    // make the winding agree with the outward normals whatever the orientation
+    const A = V3().fromArray(pos, idx[0] * 3), Bv = V3().fromArray(pos, idx[1] * 3), Cv = V3().fromArray(pos, idx[2] * 3), fn = Bv.sub(A).cross(Cv.sub(A)), nn = V3().fromArray(nor, idx[0] * 3);
+    if (fn.dot(nn) < 0) for (let k = 0; k < idx.length; k += 3) { const t = idx[k + 1]; idx[k + 1] = idx[k + 2]; idx[k + 2] = t; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+    g.computeBoundingSphere(); return g;
+  }
+  function spray(list) {
+    const n = list.length, O = new Float32Array(n * 3), Vv = new Float32Array(n * 3), P = new Float32Array(n * 4);
+    list.forEach((s, i) => { O.set(s.o, i * 3); Vv.set(s.v, i * 3); P.set([s.ph, s.life, s.size, s.g], i * 4); });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(O, 3)); g.setAttribute('aV', new THREE.BufferAttribute(Vv, 3)); g.setAttribute('aP', new THREE.BufferAttribute(P, 4));
+    const pts = new THREE.Points(g, mats().spray); pts.frustumCulled = false; pts.renderOrder = 7; return pts;
+  }
+
+  // horizontal current → liquid capsule along the flow
+  function tube(min, max, f) {
+    const alongX = Math.abs(f.x) >= Math.abs(f.z), d = Math.sign(alongX ? f.x : f.z) || 1;
+    const a0 = alongX ? (d > 0 ? min.x : max.x) : (d > 0 ? min.z : max.z), L = alongX ? max.x - min.x : max.z - min.z;
+    const cy = (min.y + max.y) / 2, cw = alongX ? (min.z + max.z) / 2 : (min.x + max.x) / 2;
+    const ry = (max.y - min.y) / 2, rw = (alongX ? max.z - min.z : max.x - min.x) / 2, cap = Math.min(1.0, L * 0.2);
+    const mk = (k0, rs, nl) => sweep(nl, rs, (u, v) => {
+      const s = u * L, e = Math.min(s, L - s), k = e < cap ? Math.sqrt(Math.max(0, 1 - Math.pow(1 - e / cap, 2))) : 1;
+      const a = v * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), along = a0 + d * s;
+      const ex = e < cap ? (1 - k) * (s < L / 2 ? -1 : 1) * d * 1.6 : 0;
+      const p = V3(0, cy + c * ry * k * k0, 0), n = V3(0, c / ry, 0);
+      if (alongX) { p.x = along; p.z = cw + sn * rw * k * k0; n.set(ex, c / ry * ry, sn / rw * ry); } else { p.z = along; p.x = cw + sn * rw * k * k0; n.set(sn / rw * ry, c / ry * ry, ex); }
+      return { p, n: n.normalize(), s };
+    });
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(mk(1, 36, Math.max(24, Math.round(L * 5))), mats().tube); m.renderOrder = 5; g.add(m);
+    const core = new THREE.Mesh(mk(0.55, 16, Math.max(12, Math.round(L * 3))), mats().core); core.renderOrder = 4; g.add(core);
+    // droplets thrown off the outlet
+    const out = [], ox = alongX ? a0 + d * L : cw, oz = alongX ? cw : a0 + d * L, n = Math.min(90, 40 + L * 2);
+    for (let i = 0; i < n; i++) { const a = rand(0, 6.28), r = rand(0.2, 0.9), sp = rand(4, 8) * d, side = Math.sin(a) * rand(1, 2.5);
+      out.push({ o: [ox + (alongX ? -0.5 * d : Math.sin(a) * rw * r), cy + Math.cos(a) * ry * r, oz + (alongX ? Math.sin(a) * rw * r : -0.5 * d)],
+        v: alongX ? [sp, rand(0, 3) + Math.cos(a) * 2, side] : [side, rand(0, 3) + Math.cos(a) * 2, sp], ph: Math.random(), life: rand(0.8, 1.4), size: rand(0.12, 0.3), g: 12 }); }
+    g.add(spray(out));
+    return g;
+  }
+  // rising current → column with a boiling crown
+  function column(min, max) {
+    const cx = (min.x + max.x) / 2, cz = (min.z + max.z) / 2, rx = (max.x - min.x) / 2, rz = (max.z - min.z) / 2, H = max.y - min.y;
+    const geo = sweep(Math.max(30, Math.round(H * 4)), 40, (u, v) => {
+      const h = u * H, a = v * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), w = 1 + (u > 0.9 ? (u - 0.9) * 3.0 : 0);
+      return { p: V3(cx + c * rx * w, min.y + h, cz + s * rz * w), n: V3(c / rx, 0, s / rz).normalize(), s: h };
+    });
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(geo, mats().col); m.renderOrder = 5; g.add(m);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(1, 36, 12, 0, Math.PI * 2, 0, Math.PI / 2), mats().crown);
+    crown.scale.set(rx * 1.25, Math.min(rx, rz) * 1.25, rz * 1.25); crown.position.set(cx, max.y - 0.2, cz); crown.renderOrder = 6; g.add(crown);
+    const L = [];
+    for (let i = 0; i < 200; i++) { const a = rand(0, 6.28), r = rand(0.3, 1.0), v = rand(0.6, 1.2) * 5;
+      L.push({ o: [cx + Math.cos(a) * rx * r, max.y - 0.5, cz + Math.sin(a) * rz * r], v: [Math.cos(a) * v, rand(0.5, 1.2) * 6, Math.sin(a) * v], ph: Math.random(), life: rand(1.0, 1.8), size: rand(0.15, 0.4), g: 14 }); }
+    g.add(spray(L));
+    return g;
+  }
+  return {
+    // returns a Group for currents that should be drawn as flowing water, or null to keep the plain volume (pools, lakes)
+    build(min, max, f) {
+      const s = max.clone().sub(min);
+      if (f.y > 0.5 && Math.abs(f.y) >= Math.hypot(f.x, f.z) && Math.max(s.x, s.z) <= 12) return column(min, max);
+      const hf = Math.hypot(f.x, f.z);
+      if (hf > 8 && f.y === 0) { const across = Math.abs(f.x) >= Math.abs(f.z) ? s.z : s.x; if (across <= 7 && s.y <= 7) return tube(min, max, f); }
+      return null;
+    },
+  };
+})();
 
 /* ================= GAME STATE ================= */
 const G = { state: 'loading', stage: 0, lens: -1, avail: [false, false, false, false], t: 0, stageTime: 0, shards: 0, total: 0, deaths: 0, kills: 0,
@@ -4006,10 +4219,21 @@ function loadStage(i) {
   if (W.restore) W.restore.forEach(r => r.mat.color.copy(r.gray).lerp(r.vivid, W.colorRestore));
   G.cp.copy(W.start); G.cpYaw = W.startYaw || 0; resetPlayer(W.start); PL.onGround = true; PL.face = G.cpYaw; CAM.yaw = G.cpYaw; CAM.pitch = 0.28; CAM.snap = true; CAM.curDist = 0;
   W.solids.forEach(s => { if (s.lens >= 0) s.mesh.castShadow = false; });
-  rebuildEnv(); PFX.clear();
+  rebuildEnv(); PFX.clear(); warmStage();
   DLG.q.length = 0; DLG.cur = null;
   $('#stageTag').textContent = `STAGE ${i + 1} · ${st.en}`; $('#stageName').textContent = st.name;
   updateHearts(); updateShards(); updateLensBar();
+}
+const WARM_RT = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType });
+function warmStage() {
+  const lbs = W.seqs.filter(S => S.lb).map(S => S.lb), culled = [];
+  lbs.forEach(b => { b.g.visible = true; b.U.uGrow.value = 0.5; b.U.uSolid.value = 0.5; });
+  W.g.traverse(o => { if ((o.isMesh || o.isPoints || o.isLine) && o.frustumCulled) { o.frustumCulled = false; culled.push(o); } });
+  sun.position.copy(PL.pos).addScaledVector(skyU.uSunDir.value, 70); sun.target.position.copy(PL.pos); sun.target.updateMatrixWorld();
+  try { renderer.compile(scene, camera); renderer.setRenderTarget(WARM_RT); renderer.render(scene, camera); } catch (e) { console.warn(e); }
+  renderer.setRenderTarget(null);
+  culled.forEach(o => { o.frustumCulled = true; });
+  lbs.forEach(b => { b.g.visible = false; b.U.uGrow.value = 0; b.U.uSolid.value = 0; });
 }
 function startStage(i) {
   AU.init(); hideScreens(); $('#hud').hidden = false;
@@ -4147,9 +4371,9 @@ function updateSeqs(dt) {
       const need = S.steps[S.idx];
       S.seedMat.emissive.copy(LENS_COL[need]).multiplyScalar(2.5 + Math.sin(G.t * 6) * 1.2);
       S.cd -= dt;
-      const pips = S.steps.map((l, k) => `${k ? '<span class="pip-arrow">›</span>' : ''}<i class="pip ${k < S.idx ? 'done' : k === S.idx ? 'next' : ''}" style="color:${LENS_HEX[l]}"></i>`).join('');
-      setTag(S.tag, `<span>GENESIS</span>${pips}`);
-      placeTag(S.tag, _v.copy(S.pos).add(V3(0, 1.6, 0)), d < 34 && G.state === 'play');
+      if (S.pipIdx !== S.idx) { S.pipIdx = S.idx; const pips = S.steps.map((l, k) => `${k ? '<span class="pip-arrow">›</span>' : ''}<i class="pip ${k < S.idx ? 'done' : k === S.idx ? 'next' : ''}" style="color:${LENS_HEX[l]}"></i>`).join('');
+        setTag(S.tag, `<span>GENESIS</span>${pips}`); }
+      placeTag(S.tag, _v.copy(S.pos).add(_tagOff.set(0, 1.6, 0)), d < 34 && G.state === 'play');
       if (d < S.radius && G.lens === need && S.cd <= 0 && G.state === 'play') {
         S.phase = S.idx; S.anim = 0; S.idx++; S.cd = 0.9; SFX.seq(S.idx - 1); G.ca = 0.8;
         burst(S.pos, hdr(LENS_COL[need], 4), 50, 12, 0.5, 0.9);
@@ -4196,9 +4420,11 @@ function updateMisc(dt) {
   }
   W.spin.forEach(s => s.o.rotation.y += s.s * dt);
   W.anims.forEach(f => f(dt));
-  W.solids.forEach(s => { if (s.deco) s.deco.scale.lerp(V3(1, 1, 1), Math.min(1, dt * 8)); });
+  if (!W.decoS) W.decoS = W.solids.filter(s => s.deco);
+  for (const s of W.decoS) s.deco.scale.lerp(_ONE, Math.min(1, dt * 8));
   if (W.motes) W.motes.material.uniforms.uCam.value.copy(camera.position);
-  W.g.children.forEach(c => { if (c.material && c.material.uniforms && c.material.uniforms.uCam && c !== W.motes) c.material.uniforms.uCam.value.copy(camera.position); });
+  if (!W.camU || W.camN !== W.g.children.length) { W.camN = W.g.children.length; W.camU = W.g.children.filter(c => c.material && c.material.uniforms && c.material.uniforms.uCam && c !== W.motes).map(c => c.material.uniforms.uCam.value); }
+  for (const u of W.camU) u.copy(camera.position);
   // vines grow while green is worn
   { const was = VGROW.value; VGROW.value = G.lens === 2 ? Math.min(1, was + dt * 0.85) : Math.max(0, was - dt * 2.5);
     if (G.lens === 2 && was < 1) for (const v of W.vines) { const fy = v.y0 + VGROW.value * 1.05 * (v.y1 - v.y0); if (fy > v.y1) continue;
@@ -4246,7 +4472,7 @@ function updateMisc(dt) {
         else { popup(`POWER ${d.powered}/${d.need}`, LENS_HEX[3]); SFX.gen(); say(['あと' + (d.need - d.powered) + 'つ！ もう一台の発電機を探して。'], true); } }
     }
     setTag(g.tag, `<span style="color:${LENS_HEX[3]}">POWER</span><div class="bar"><i style="width:${Math.round(Math.min(1, g.charge) * 100)}%"></i></div>`);
-    placeTag(g.tag, _v.copy(g.pos).add(V3(0, 1.8, 0)), !g.done && d < 18 && G.state === 'play');
+    placeTag(g.tag, _v.copy(g.pos).add(_tagOff.set(0, 1.8, 0)), !g.done && d < 18 && G.state === 'play');
   }
   // fences
   for (const f of W.fences) {
@@ -4323,6 +4549,7 @@ function resize() {
 addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') pauseGame(); });
 
+let lastTimerTxt = ''; const TIMER_EL = $('#timer'); const _ONE = V3(1, 1, 1), _tagOff = V3();
 function frame(now) {
   requestAnimationFrame(frame);
   let rdt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -4367,7 +4594,7 @@ function frame(now) {
   const hs = Math.hypot(PL.vel.x, PL.vel.z, PL.vel.y * 0.5);
   cu.uSpeed.value = damp(cu.uSpeed.value, G.state === 'play' ? clamp((hs - 15) / 15, 0, 1) : 0, 6, rdt);
   cu.uSat.value = W.theme.key === 'mono' ? 0.5 + 0.5 * W.colorRestore : 1;
-  if (G.state === 'play') $('#timer').textContent = fmtTime(G.stageTime);
+  if (G.state === 'play') { const ts = fmtTime(G.stageTime); if (ts !== lastTimerTxt) { lastTimerTxt = ts; TIMER_EL.textContent = ts; } }
   POST.render();
   INPUT.jumpPressed = false; INPUT.dashPressed = false;
 }
