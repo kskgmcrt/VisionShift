@@ -469,7 +469,9 @@ const SFX = {
     g2.gain.linearRampToValueAtTime(0, t + 1.1); s2.connect(hp); hp.connect(g2); g2.connect(AU.sfxBus); s2.start(t, Math.random() * 0.5); s2.stop(t + 1.2);
   },
   bounce() { AU.tone(180, 0.35, { vol: 0.14, glide: 720 }); AU.tone(360, 0.3, { type: 'triangle', vol: 0.05, glide: 1440, rev: 0.3 }); },
-  splash() { AU.noise(0.45, { vol: 0.14, f: 1800, f2: 400, type: 'lowpass' }); },
+  splash() { // a soft "zabun": a round quiet thump, dark water spreading, a little spray settling
+    SE.osc({ f: 80, f1: 46, dur: 0.34, vol: 0.12, a: 0.03 }); SE.noise({ dur: 0.6, f: 560, f1: 170, type: 'lowpass', vol: 0.09, a: 0.05, wet: 0.4 });
+    SE.noise({ dur: 0.7, f: 2200, f1: 1300, q: 0.6, vol: 0.014, a: 0.14, at: 0.08, wet: 0.5 }); SE.osc({ f: 200, f1: 400, at: 0.2, dur: 0.14, vol: 0.03, a: 0.005, wet: 0.25 }); },
   cp() { [523, 659, 784, 1046].forEach((f, i) => AU.tone(f, 0.4, { type: 'triangle', vol: 0.06, delay: i * 0.07, rev: 0.5 })); },
   seq(k) { const f = [392, 494, 587, 784][k % 4]; AU.tone(f, 1.2, { vol: 0.09, rev: 0.8 }); AU.tone(f * 1.5, 1.2, { vol: 0.05, rev: 0.8, delay: 0.08 }); AU.noise(0.8, { vol: 0.06, f: 500, f2: 8000, rev: 0.6 }); },
   build() { [392, 494, 587, 784, 988, 1175].forEach((f, i) => AU.tone(f, 0.9, { type: 'triangle', vol: 0.07, delay: i * 0.06, rev: 0.7 })); AU.tone(98, 1.4, { vol: 0.2, glide: 49 }); },
@@ -6265,7 +6267,7 @@ const CINE = {
     this.i++; if (this.i >= this.shots.length) { this.end(); return; }
     const s = this.cur = this.shots[this.i]; s.t = 0;
     // line timing: one after another, long enough to read
-    let t = s.pre ?? 0.4; s.L = (s.lines || []).map(([who, text]) => { const d = 1.1 + text.length * 0.085 + (who === 'narr' ? 0.5 : 0), o = { who, text, t0: t, t1: t + d }; t += d; return o; });
+    let t = s.pre ?? 0.4; s.L = (s.lines || []).map(([who, text]) => { text = hintText(text); const d = 1.1 + text.length * 0.085 + (who === 'narr' ? 0.5 : 0), o = { who, text, t0: t, t1: t + d }; t += d; return o; });
     s.D = Math.max(s.d || 0, t + (s.post ?? 0.3)); this.lineI = -1;
     if (s.enter) s.enter();
   },
@@ -6699,7 +6701,10 @@ function updateLensBar() { document.querySelectorAll('.lens').forEach(b => { con
 function fmtTime(t) { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; }
 function popup(text, color = '#fff') { const el = document.createElement('div'); el.className = 'popup'; el.textContent = text; el.style.color = color; $('#popups').appendChild(el); setTimeout(() => el.remove(), 1150); }
 const DLG = { q: [], cur: null, shown: 0, hold: 0, lastChirp: 0 };
-function say(lines, interrupt = false) { if (interrupt) { DLG.q.length = 0; DLG.cur = null; } DLG.q.push(...lines); }
+// on a phone there are no number keys: the lens hints point at the colour buttons instead
+const LNAME = ['赤', '青', '緑', '黄'];
+function hintText(s) { if (!IS_TOUCH) return s; return s.replace(/もう一度\[1\]か\[Q\]/g, 'もう一度赤のボタンをタップ').replace(/\[([1-4])\] ?で/g, (m, d) => LNAME[d - 1] + 'のボタンをタップで').replace(/\[Space\]で/g, 'ジャンプボタンで'); }
+function say(lines, interrupt = false) { lines = lines.map(hintText); if (interrupt) { DLG.q.length = 0; DLG.cur = null; } DLG.q.push(...lines); }
 function updateDialog(dt) {
   const el = $('#dialog');
   if (!DLG.cur) { if (!DLG.q.length) { el.classList.remove('on'); return; } DLG.cur = DLG.q.shift(); DLG.shown = 0; DLG.hold = 0; el.classList.add('on'); }
@@ -6754,6 +6759,14 @@ function loadStage(i) {
     const at = (d) => { let w = 0; for (let j = 1; j < pts.length; j++) { const a = pts[j - 1], b = pts[j], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (w + L >= d && L > 0) { const f = (d - w) / L; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; } w += L; } return pts[pts.length - 1]; };
     const A = at(10), B2 = at(24), dx = B2[0] - A[0], dz = B2[1] - A[1]; if (Math.hypot(dx, dz) < 5) return;
     const y = Math.round(Math.atan2(-dx, -dz) / (Math.PI / 2)) * (Math.PI / 2); W.cpFix.push([k, +(c.yaw || 0).toFixed(2), +y.toFixed(2)]); c.yaw = y; });
+  // fewer checkpoints, spread evenly: keep about half, each the one nearest an even division of the road
+  if (W.cps.length > 2 && W.path.length > 1) { const P = W.path, cum = [0]; for (let k = 1; k < P.length; k++) cum.push(cum[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
+    const total = cum[cum.length - 1], last = i === STAGES.length - 1 ? W.cps[W.cps.length - 1] : null;
+    let py = W.start.y; const PY = P.map(p => (p[2] !== undefined ? (py = p[2]) : py));
+    const pool = W.cps.filter(c => c !== last).map(c => { let bd = 1e9, d = 0; for (let k = 0; k < P.length; k++) { const q = Math.hypot(P[k][0] - c.pos.x, P[k][1] - c.pos.z, (PY[k] - c.pos.y) * 2); if (q < bd) { bd = q; d = cum[k]; } } return { c, d }; });
+    const span = last ? pool.reduce((m, o) => Math.max(m, o.d), 0) * 1.08 : total, n = Math.max(1, ([2, 2, 4, 4, 5, 6][i] || 4) - (last ? 1 : 0)), keep = new Set(last ? [last] : []);
+    if (n < pool.length) { for (let k = 1; k <= n; k++) { const tgt = span * k / (n + 1); let best = null; for (const o of pool) if (!keep.has(o.c) && (!best || Math.abs(o.d - tgt) < Math.abs(best.d - tgt))) best = o; if (best) keep.add(best.c); }
+      W.cps = W.cps.filter(c => { if (keep.has(c)) return true; if (c.g && c.g.parent) c.g.parent.remove(c.g); return false; }); } }
   decorate(T.key, i === 0, i === STAGES.length - 1); SHARDS.build();
   G.stage = i; G.total = W.shards.length; G.shards = 0; G.deaths = 0; G.kills = 0; G.stageTime = 0; G.hintSaid = false;
   // a stage's new colour stays locked (and the world grey) until its colour core is found
@@ -7150,6 +7163,11 @@ function frame(now) {
     G.stageTime += rdt;
     updateMovers(dt);
     stepPlayer(dt);
+    // a fall with nothing left beneath it ends after the same short wait, however high it began
+    if (W.theme.key !== 'aqua' && !PL.onGround && PL.vel.y < -4 && !PL.water && !PL.rail) { const x = PL.pos.x, y = PL.pos.y, z = PL.pos.z, M = 3;
+      const boxBelow = (b) => b.min.y < y && x > b.min.x - M && x < b.max.x + M && z > b.min.z - M && z < b.max.z + M;
+      const safe = W.solids.some(boxBelow) || W.waters.some(boxBelow) || W.vines.some(v => v.min && boxBelow(v)) || W.rails.some(r => r.segs.some(s => { const e = s.a.clone().addScaledVector(s.dir, s.len); return Math.min(s.a.y, e.y) < y && x > Math.min(s.a.x, e.x) - 5 && x < Math.max(s.a.x, e.x) + 5 && z > Math.min(s.a.z, e.z) - 5 && z < Math.max(s.a.z, e.z) + 5; }));
+      G.fallT = safe ? 0 : (G.fallT || 0) + dt; if (G.fallT > 0.9) { G.fallT = 0; die(); } } else G.fallT = 0;
     if (PL.pos.y < W.killY) { if (W.theme.key === 'aqua') { SFX.splash(); burst(V3(PL.pos.x, SEA_Y + 0.3, PL.pos.z), new THREE.Color(1.3, 1.6, 2), 40, 9, 0.7, 0.9, 12); } die(); }
     hintCheck();
   } else if (G.state === 'clear' || G.state === 'ending') {
