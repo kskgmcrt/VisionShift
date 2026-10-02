@@ -7333,7 +7333,7 @@ function frame(now) {
 /* ================= UI WIRING ================= */
 $('#bStart').onclick = () => startStage(Math.min(SAVE.unlocked, STAGES.length) - 1);
 $('#bSelect').onclick = () => { refreshTitle(); $('#title').hidden = true; $('#stageSel').hidden = false; };
-function refreshPre() { const b = $('#bPre'); b.hidden = !SAVE.best[STAGES.length - 1]; if (b.hidden) G.preTest = false; else G.preTest = !!SAVE.pre; b.textContent = 'クリア前の世界 ' + (G.preTest ? 'ON' : 'OFF'); nameFirst(!b.hidden && !G.preTest); }
+function refreshPre() { const b = $('#bPre'); b.hidden = !SAVE.best[STAGES.length - 1]; if (b.hidden) G.preTest = false; else G.preTest = !!SAVE.pre; b.textContent = 'クリア前の世界 ' + (G.preTest ? 'ON' : 'OFF'); b.style.background = G.preTest ? '#ffffff' : ''; b.style.color = G.preTest ? '#14151c' : ''; b.style.borderColor = G.preTest ? '#ffffff' : ''; nameFirst(!b.hidden && !G.preTest); }
 function nameFirst(col) { STAGES[0].name = col ? '色づいた世界' : '色を失った世界'; STAGES[0].en = col ? 'THE COLORFUL' : 'THE COLORLESS'; }
 $('#bPre').onclick = () => { SAVE.pre = !SAVE.pre; writeSave(); refreshPre(); };
 refreshPre();
