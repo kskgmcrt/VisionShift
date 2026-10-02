@@ -3836,17 +3836,20 @@ const BOY = (() => {
   for (let t = 0; t < idx.length; t += 3) { const r0 = root(idx[t]); par[root(idx[t + 1])] = r0; par[root(idx[t + 2])] = r0; }
   const isl = new Map();
   for (let i = 0; i < n; i++) {
-    const r = root(i); let o = isl.get(r); if (!o) isl.set(r, o = { n: 0, c: [0, 0, 0], sp: [0, 0, 0] });
-    o.n++; if (vd[i] < 0.06) { o.c[vid[i]]++; o.sp[vid[i]] += vs[i * 2 + vid[i] - 1]; }
+    const r = root(i); let o = isl.get(r); if (!o) isl.set(r, o = { n: 0, c: [0, 0, 0], sp: [0, 0, 0], m: V3() });
+    o.n++; o.m.add(p.fromBufferAttribute(P, i)); if (vd[i] < 0.06) { o.c[vid[i]]++; o.sp[vid[i]] += vs[i * 2 + vid[i] - 1]; }
   }
+  const HEADC = V3(0.01, 0.87, 0.09);
+  const LENS_SHELL = [V3(0.115, 0.8, 0.224), V3(0.144, 0.829, 0.214)], LENS_R = 0.012;
   const arm = new Float32Array(n * 4);
   const ssf = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   for (let i = 0; i < n; i++) {
     const o = isl.get(root(i)); let k = 0;
     if (o.n <= 400) {
+      if (!o.lens) { const c = o.m.clone().multiplyScalar(1 / o.n); o.lens = LENS_SHELL.some(q => c.distanceTo(q) < LENS_R) ? 2 : 1; } if (o.lens === 2) continue;   // the goggle lens over his left eye stays on his face, not in his hand
       const best = o.c[1] >= o.c[2] ? 1 : 2, fr = o.c[best] / o.n, ms = o.c[best] ? o.sp[best] / o.c[best] : 0;
       if (fr >= (ms > 1.1 && ms < 1.75 ? 0.3 : 0.5)) k = best;           // forearm shells may be thicker than the radius
-    } else if (vd[i] < 0.045) k = vid[i];
+    } else if (vd[i] < 0.045) { p.fromBufferAttribute(P, i); if (p.distanceTo(HEADC) > 0.17) k = vid[i]; }   // the face itself never follows a hand that rests on it
     if (!k) continue;
     const sp = vs[i * 2 + k - 1];
     arm[i * 4] = k; arm[i * 4 + 1] = ssf(0.0, 0.35, sp); arm[i * 4 + 2] = ssf(0.82, 1.12, sp); arm[i * 4 + 3] = 1;
