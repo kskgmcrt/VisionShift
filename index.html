@@ -249,7 +249,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
       <button class="btn primary" id="bStart">▶ START</button>
       <button class="btn" id="bSelect">STAGE SELECT</button>
       <button class="btn" id="bMovies">ムービー</button>
-      <button class="btn" id="bPre" hidden>撃破前の世界 OFF</button>
+      <button class="btn" id="bPre" hidden>クリア前の世界 OFF</button>
       <button class="btn" id="bHow">あそびかた</button>
     </div>
     <div class="foot" id="soundNote">SOUND ON · PC: WASD + MOUSE · MOBILE: TOUCH</div>
@@ -5462,6 +5462,128 @@ const LABHALL = (() => {
   return { build, update };
 })();
 
+/* ================= THE FIRST WORLD, IN COLOUR: a garden of four colours under a stained-glass sky =================
+   Marble floors with gold rims and a mosaic in each stretch's colour; islets of red blossom, blue falls, green boughs and
+   yellow lanterns beside the road; overhead a great rose window turning slowly, its light falling in shafts onto the stone. */
+const GARDEN = (() => {
+  const GL = `
+    uniform float uTime; uniform vec3 uL0, uL1, uL2, uL3; uniform vec4 uCan;   // canopy: centre x, centre z, radius, height
+    vec3 gLens(float i){ i = mod(i, 4.0); return i < 0.5 ? uL0 : (i < 1.5 ? uL1 : (i < 2.5 ? uL2 : uL3)); }
+    float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float gn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
+    // the rose window: q in disc coordinates (-1..1). rgb = glass colour, a = 1 on glass / 0 on the leading
+    vec4 gRose(vec2 q){ float ro = uTime * 0.02; q = mat2(cos(ro), -sin(ro), sin(ro), cos(ro)) * q; float r = length(q), a = atan(q.y, q.x) / 6.2832 + 0.5;
+      if (r > 1.0) return vec4(0.0);
+      float rr = r * 5.0, ri = floor(rr), fr = fract(rr), n = ri < 0.5 ? 12.0 : 8.0 * (ri + 1.0), aa = a * n + ri * 0.5, si = floor(aa), fa = fract(aa);
+      // each pane is a pointed petal inside its cell, set in gold-white glass
+      float px = abs(fa - 0.5) * 2.0, petal = step(px, 1.0 - pow(fr, 1.6)) * step(0.06, fr);
+      vec3 c = mix(vec3(1.0, 0.93, 0.74), gLens(si + ri), petal);
+      float dr = min(fr, 1.0 - fr) / 5.0, da = min(fa, 1.0 - fa) / n * 6.2832 * max(r, 0.05), dp = abs(px - (1.0 - pow(fr, 1.6))) * 0.5 / n * 6.2832 * max(r, 0.05);
+      float lead = smoothstep(0.0035, 0.007, min(min(dr, da), dp + step(fr, 0.06)));
+      return vec4(c, lead); }`;
+  function build() {
+    const g = new THREE.Group(); W.g.add(g);
+    const keep = (m) => { W.dispose.push(m); return m; };
+    const P = W.path, cum = [0]; for (let k = 1; k < P.length; k++) cum.push(cum[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
+    const total = cum[cum.length - 1] || 1; let py = W.start.y; const PY = P.map(p => (p[2] !== undefined ? (py = p[2]) : py));
+    const near = (x, z) => { let bd = 1e9, bk = 0; for (let k = 0; k < P.length; k++) { const q = Math.hypot(P[k][0] - x, P[k][1] - z); if (q < bd) { bd = q; bk = k; } } return bk; };
+    const zoneAt = (x, z) => clamp(Math.floor(cum[near(x, z)] / total * 4), 0, 3);
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, yMax = -1e9; P.forEach((p, k) => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); yMax = Math.max(yMax, PY[k]); });
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, CR = Math.max(x1 - x0, z1 - z0) * 0.5 + 70, CH = yMax + 85;
+    const U = { uTime: GU.time, uL0: { value: LENS_COL[0] }, uL1: { value: LENS_COL[1] }, uL2: { value: LENS_COL[2] }, uL3: { value: LENS_COL[3] }, uCan: { value: new THREE.Vector4(cx, cz, CR, CH) } };
+
+    /* ---- marble floors: gold rim, a mosaic band and a medallion in the stretch's colour, the window's light lying on the stone ---- */
+    const pads = W.solids.filter(s => s.kind === 'plat' && s.lens < 0 && s.mesh && s.mesh.visible && s.max.x - s.min.x >= 2.5 && s.max.z - s.min.z >= 2.5 && !W.movers.some(m => m.s === s));
+    pads.forEach(s => { const w = s.max.x - s.min.x, d = s.max.z - s.min.z, mx = (s.min.x + s.max.x) / 2, mz = (s.min.z + s.max.z) / 2, zc = LENS_COL[zoneAt(mx, mz)];
+      const mat = keep(new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.08 })); mat.defines = { USE_UV: '' };
+      mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, U, { uSize: { value: new THREE.Vector2(w, d) }, uCen: { value: new THREE.Vector2(mx, mz) }, uZone: { value: zc } });
+        sh.fragmentShader = sh.fragmentShader.replace('void main() {', GL + `uniform vec2 uSize, uCen; uniform vec3 uZone; vec3 gGlow;
+          vec3 gFloor(vec2 uv){ vec2 S = uSize, m = uv * S; float e = min(min(m.x, S.x - m.x), min(m.y, S.y - m.y)), big = step(7.0, min(S.x, S.y));
+            vec3 c = vec3(0.84, 0.81, 0.76); float v = sin((m.x + m.y * 0.6) * 0.8 + gn(m * 0.3) * 7.0 + gn(m * 1.3) * 2.0); c -= vec3(0.2, 0.19, 0.16) * smoothstep(0.08, 0.0, abs(v)) * gn(m * 0.15 + 3.0);
+            vec2 tf = fract(m / 2.0); c *= 0.94 + 0.06 * smoothstep(0.0, 0.02, min(min(tf.x, 1.0 - tf.x), min(tf.y, 1.0 - tf.y)));
+            // mosaic band: small tiles alternating the colour and pearl
+            float band = big * step(1.0, e) * step(e, 1.75); vec2 mt = m / 0.375; float chk = mod(floor(mt.x) + floor(mt.y), 2.0); vec2 mf = fract(mt); float grout = smoothstep(0.0, 0.1, min(min(mf.x, 1.0 - mf.x), min(mf.y, 1.0 - mf.y)));
+            c = mix(c, mix(vec3(0.9, 0.87, 0.8), uZone * 0.8, chk) * (0.55 + 0.45 * grout), band);
+            // medallion: an eight-pointed flower of tiles ringed in gold
+            vec2 q = m - S * 0.5; float r = length(q), a = atan(q.y, q.x), R0 = min(S.x, S.y) * 0.3; if (R0 > 1.6) { float pet = step(r, R0 * (0.5 + 0.34 * abs(cos(a * 4.0)))), in2 = step(r, R0 * (0.2 + 0.16 * abs(sin(a * 4.0))));
+              vec3 mc = mix(vec3(0.92, 0.89, 0.82), uZone * 0.8, pet); mc = mix(mc, vec3(0.95, 0.72, 0.25), in2); vec2 pf = fract(vec2(r / 0.3, a / 6.2832 * floor(6.2832 * max(r, 0.3) / 0.3))); float pg = smoothstep(0.0, 0.1, min(min(pf.x, 1.0 - pf.x), min(pf.y, 1.0 - pf.y)));
+              c = mix(c, mc * (0.6 + 0.4 * pg), step(r, R0)); float ring = smoothstep(0.09, 0.03, abs(r - R0)) + smoothstep(0.06, 0.02, abs(r - R0 * 1.12)); c = mix(c, vec3(0.9, 0.62, 0.16), clamp(ring, 0.0, 1.0)); }
+            // gold rim
+            float rim = step(0.18, e) * step(e, 0.5) + step(0.72, e) * step(e, 0.8) * big; c = mix(c, vec3(0.9, 0.62, 0.16), clamp(rim, 0.0, 1.0));
+            // the rose window's light on the floor
+            vec2 wp = uCen + vec2(uv.x - 0.5, 0.5 - uv.y) * S; vec4 rw = gRose((wp - uCan.xy) / uCan.z); gGlow = rw.rgb * rw.a * 0.16;
+            return c; }
+          void main() {`).replace('#include <map_fragment>', 'diffuseColor.rgb = gFloor(vUv);').replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance += gGlow;'); };
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); pl.rotation.x = -Math.PI / 2; pl.position.set(mx, s.max.y + 0.025, mz); pl.receiveShadow = true; g.add(pl); });
+
+    /* ---- the rose window overhead ---- */
+    const canM = keep(new THREE.ShaderMaterial({ uniforms: U, side: THREE.DoubleSide, transparent: true, depthWrite: false, fog: false,
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: GL + `varying vec2 vUv; void main(){ vec2 q = (vUv - 0.5) * 2.0; q.y = -q.y; float r = length(q); if (r > 1.0) discard; vec4 rw = gRose(q);
+        vec3 c = mix(vec3(0.5, 0.36, 0.12), rw.rgb * (1.15 + 0.25 * sin(uTime * 0.5 + r * 9.0)), rw.a); c = mix(c, vec3(1.0, 0.8, 0.35) * 1.3, smoothstep(0.965, 0.985, r));
+        gl_FragColor = vec4(c, mix(0.9, 0.82, rw.a) * smoothstep(1.0, 0.995, r)); }` }));
+    const can = new THREE.Mesh(new THREE.CircleGeometry(CR, 128), canM); can.rotation.x = Math.PI / 2; can.position.set(cx, CH, cz); can.renderOrder = -1; g.add(can);
+    const ringM = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.1, 0.45), fog: false })); const rg = new THREE.Mesh(new THREE.TorusGeometry(CR, 1.6, 8, 160), ringM); rg.rotation.x = Math.PI / 2; rg.position.copy(can.position); g.add(rg);
+
+    /* ---- shafts of coloured light from the window down to the road ---- */
+    const shaftM = (c3) => keep(new THREE.ShaderMaterial({ uniforms: { uTime: GU.time, uCol: { value: c3 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+      vertexShader: 'varying vec2 vUv; varying vec3 vN, vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: `uniform float uTime; uniform vec3 uCol; varying vec2 vUv; varying vec3 vN, vV;
+        void main(){ float f = abs(dot(normalize(vN), normalize(vV))); float a = pow(f, 1.5) * (0.5 + 0.5 * sin(vUv.x * 50.0 + uTime * 0.4)) * smoothstep(0.0, 0.2, vUv.y) * (0.35 + 0.65 * vUv.y) * 0.34; gl_FragColor = vec4(uCol * a * 1.6, a); }` }));
+    const sm = LENS_COL.map(c => shaftM(c));
+    pads.filter((s, k) => k % 2 === 0).forEach(s => { const mx = (s.min.x + s.max.x) / 2, mz = (s.min.z + s.max.z) / 2, h = CH - s.max.y, r = Math.min(s.max.x - s.min.x, s.max.z - s.min.z) * 0.38;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r, h, 24, 1, true), sm[zoneAt(mx, mz)]); m.position.set(mx, s.max.y + h / 2, mz); g.add(m); });
+
+    /* ---- islets beside the road, each stretch planted in its colour ---- */
+    const M = (hex, o = {}) => keep(new THREE.MeshStandardMaterial(Object.assign({ color: col(hex), roughness: 0.8, flatShading: true }, o)));
+    const B = (c3, k = 1) => keep(new THREE.MeshBasicMaterial({ color: c3.clone().multiplyScalar(k) }));
+    const rock = M('#d8ccb6'), rock2 = M('#bfae95'), grass = M('#74c85e'), bark = M('#7a5236'), barkW = M('#efe6d8'),
+      red = [M('#ff4f64'), M('#ff8aa0'), M('#ffc2cf')], green = [M('#2f9a48'), M('#56b85a'), M('#8fd46a')], pool = keep(new THREE.MeshStandardMaterial({ color: col('#3fa8ff'), roughness: 0.08, metalness: 0.3, emissive: col('#1560c0'), emissiveIntensity: 0.5 })),
+      gold = keep(new THREE.MeshStandardMaterial({ color: col('#e8b84a'), roughness: 0.3, metalness: 0.8 })), lampC = B(LENS_COL[3], 2.4), paper = B(new THREE.Color(1.0, 0.72, 0.3), 1.7);
+    const fallM = keep(new THREE.ShaderMaterial({ uniforms: { uTime: GU.time }, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float uTime; varying vec2 vUv; float h(float x){ return fract(sin(x * 91.7) * 4375.5); }
+        void main(){ float col = floor(vUv.x * 26.0), s = h(col), y = fract(vUv.y * (2.0 + s * 2.0) + uTime * (0.5 + s * 0.5)); float streak = smoothstep(0.0, 0.5, y) * smoothstep(1.0, 0.6, y);
+          float edge = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x), fade = smoothstep(0.0, 0.25, vUv.y); vec3 c = mix(vec3(0.2, 0.55, 1.0), vec3(0.9, 0.97, 1.0), streak * 0.8); gl_FragColor = vec4(c * 1.15, (0.35 + 0.5 * streak) * edge * fade); }` }));
+    const G0 = { islet: new THREE.CylinderGeometry(1, 0.18, 1.5, 9), cap: new THREE.CylinderGeometry(1.04, 1, 0.12, 9), blob: new THREE.IcosahedronGeometry(1, 1), trunk: new THREE.CylinderGeometry(0.16, 0.3, 1, 7), disc: new THREE.CylinderGeometry(1, 1, 0.08, 20),
+      fall: new THREE.PlaneGeometry(1, 1), post: new THREE.CylinderGeometry(0.07, 0.1, 1, 6), lantern: new THREE.CylinderGeometry(0.34, 0.26, 0.6, 6), cap2: new THREE.ConeGeometry(0.46, 0.26, 6), vine: new THREE.CylinderGeometry(0.05, 0.03, 1, 5) };
+    let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }, rr = (a, b) => a + (b - a) * rnd();
+    const add = (p, geo, mat, x, y, z, sx = 1, sy = sx, sz = sx) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); p.add(m); return m; };
+    const tree = (p, x, z, h, mats, pale) => { const t = add(p, G0.trunk, pale ? barkW : bark, x, h / 2, z, 1.6, h, 1.6); t.castShadow = true; t.rotation.z = rr(-0.12, 0.12);
+      for (let i = 0; i < 7; i++) { const a = rr(0, 6.28), d = i ? rr(0.6, 1.7) : 0, s = rr(1.1, 1.9) * (i ? 1 : 1.25); const b = add(p, G0.blob, mats[i % mats.length], x + Math.cos(a) * d, h + rr(-0.2, 1.3) + (i ? 0 : 0.8), z + Math.sin(a) * d, s, s * 0.8, s); b.castShadow = true; b.rotation.set(rr(0, 3), rr(0, 3), 0); } };
+    const islet = (x, y, z, r, zone) => { const p = new THREE.Group(); p.position.set(x, y, z); p.rotation.y = rr(0, 6.28); g.add(p);
+      add(p, G0.islet, rock, 0, -r * 0.75, 0, r, r, r); add(p, G0.islet, rock2, r * 0.35, -r * 1.1, -r * 0.2, r * 0.45, r * 0.9, r * 0.45); add(p, G0.cap, zone === 1 ? rock : grass, 0, 0, 0, r, 1, r);
+      if (zone === 0) { tree(p, 0, 0, rr(3, 4.2), red, true); if (r > 4) tree(p, r * 0.5, -r * 0.3, rr(2, 2.8), [red[1], red[2]], true); for (let i = 0; i < 6; i++) { const a = rr(0, 6.28), d = rr(0.3, 0.85) * r; add(p, G0.blob, red[(i % 2) + 1], Math.cos(a) * d, 0.16, Math.sin(a) * d, 0.28, 0.14, 0.28); } }
+      if (zone === 1) { add(p, G0.disc, pool, 0, 0.08, 0, r * 0.82, 1, r * 0.82); add(p, G0.blob, rock2, -r * 0.5, 0.5, r * 0.3, 0.9, 0.7, 0.9); const fh = rr(26, 40); const f = add(p, G0.fall, fallM, 0, 0.1 - fh / 2, r * 0.86, r * 0.9, fh, 1); f.renderOrder = 2;
+        const f2 = add(p, G0.fall, fallM, 0, 0.1 - fh / 2, r * 0.86, r * 0.9, fh, 1); f2.rotation.y = Math.PI / 2; f2.position.set(r * 0.86, 0.1 - fh / 2, 0); f2.renderOrder = 2; }
+      if (zone === 2) { tree(p, 0, 0, rr(3.4, 5), green, false); for (let i = 0; i < 5; i++) { const a = rr(0, 6.28), d = rr(0.4, 0.8) * r; add(p, G0.blob, green[i % 3], Math.cos(a) * d, 0.5, Math.sin(a) * d, rr(0.6, 1.1), rr(0.5, 0.8), rr(0.6, 1.1)).castShadow = true; }
+        for (let i = 0; i < 7; i++) { const a = rr(0, 6.28), L = rr(3, 8); add(p, G0.vine, green[0], Math.cos(a) * r * 0.92, -L / 2, Math.sin(a) * r * 0.92, 1, L, 1); for (let j = 1; j < L; j += 1.3) add(p, G0.blob, green[(i + j | 0) % 3], Math.cos(a) * r * 0.92, -j, Math.sin(a) * r * 0.92, 0.22, 0.16, 0.22); } }
+      if (zone === 3) { for (let i = 0; i < 3; i++) { const a = i * 2.1 + 0.4, d = i ? r * 0.55 : 0, h = i ? rr(2.2, 3) : 4; add(p, G0.post, gold, Math.cos(a) * d, h / 2, Math.sin(a) * d, 1, h, 1); add(p, G0.lantern, lampC, Math.cos(a) * d, h + 0.3, Math.sin(a) * d); add(p, G0.cap2, gold, Math.cos(a) * d, h + 0.73, Math.sin(a) * d); }
+        for (let i = 0; i < 5; i++) { const a = rr(0, 6.28), d = rr(0.3, 0.85) * r; add(p, G0.blob, keep === 0 ? grass : M('#ffd84a'), Math.cos(a) * d, 0.2, Math.sin(a) * d, 0.3, 0.2, 0.3); }
+        for (let i = 0; i < 6; i++) { const a = rr(0, 6.28), d = rr(1.5, r * 2.2), y2 = rr(3, 14); add(p, G0.lantern, paper, Math.cos(a) * d, y2, Math.sin(a) * d, 0.9); add(p, G0.cap2, gold, Math.cos(a) * d, y2 + 0.4, Math.sin(a) * d, 0.8); } } };
+    const clear = (x, z, r) => !P.some(p => Math.hypot(p[0] - x, p[1] - z) < r + 5) && !W.solids.some(s => x > s.min.x - r - 2 && x < s.max.x + r + 2 && z > s.min.z - r - 2 && z < s.max.z + r + 2);
+    const spots = []; let acc = 8;
+    for (let k = 1; k < P.length; k++) { const a = P[k - 1], b = P[k], dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz); if (len < 0.01) continue; const nx = -dz / len, nz = dx / len;
+      while (acc <= len) { const f = acc / len, bx = a[0] + dx * f, bz = a[1] + dz * f; [-1, 1].forEach(sd => { for (let tr = 0; tr < 3; tr++) { const off = rr(13, 30), r = rr(3.2, 5.6), x = bx + nx * sd * off + rr(-4, 4), z = bz + nz * sd * off + rr(-4, 4);
+            if (clear(x, z, r) && !spots.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] + r + 3)) { spots.push([x, z, r]); islet(x, PY[k] + rr(-5, 2.5), z, r, zoneAt(bx, bz)); break; } } });
+        acc += 15; }
+      acc -= len; }
+
+    /* ---- petals on the air ---- */
+    const NP = IS_TOUCH ? 500 : 900, pos = new Float32Array(NP * 3), pc = new Float32Array(NP * 3), ph = new Float32Array(NP), pal = [new THREE.Color(1, 0.62, 0.72), new THREE.Color(1, 0.86, 0.9), new THREE.Color(1, 1, 1), new THREE.Color(1, 0.9, 0.5)];
+    for (let i = 0; i < NP; i++) { pos[i * 3] = rr(x0 - 45, x1 + 45); pos[i * 3 + 1] = rr(0, 1); pos[i * 3 + 2] = rr(z0 - 45, z1 + 45); const c = pal[i % 4]; pc[i * 3] = c.r; pc[i * 3 + 1] = c.g; pc[i * 3 + 2] = c.b; ph[i] = rnd(); }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); pg.setAttribute('color', new THREE.BufferAttribute(pc, 3)); pg.setAttribute('aPh', new THREE.BufferAttribute(ph, 1));
+    const petM = keep(new THREE.ShaderMaterial({ uniforms: { uTime: GU.time, uY: { value: new THREE.Vector2(W.killY, yMax + 45) }, uPx: { value: renderer.getPixelRatio() } }, transparent: true, depthWrite: false, vertexColors: true, fog: false,
+      vertexShader: `uniform float uTime, uPx; uniform vec2 uY; attribute float aPh; varying vec3 vC; varying float vR;
+        void main(){ vC = color; float t = fract(position.y - uTime * (0.012 + aPh * 0.012)); vec3 p = position; p.y = mix(uY.x, uY.y, t); p.x += sin(uTime * 0.6 + aPh * 40.0) * 3.0; p.z += cos(uTime * 0.45 + aPh * 31.0) * 3.0;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); vR = uTime * (1.0 + aPh) + aPh * 20.0; gl_PointSize = uPx * (90.0 + aPh * 70.0) / max(-mv.z, 1.0); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying vec3 vC; varying float vR; void main(){ vec2 q = gl_PointCoord - 0.5; float c = cos(vR), s = sin(vR); q = mat2(c, -s, s, c) * q; q.x *= 1.0 + 1.2 * abs(sin(vR * 0.7)); float d = length(q * vec2(1.0, 1.7)); if (d > 0.42) discard; gl_FragColor = vec4(vC * (0.95 + 0.25 * q.y), 0.92); }` }));
+    const pts = new THREE.Points(pg, petM); pts.frustumCulled = false; g.add(pts);
+    Object.values(G0).forEach(x => W.dispose.push(x));
+  }
+  return { build };
+})();
+
 /* ================= DECOR ================= */
 function instBoxes(n, mat, fn, cast = false) {
   const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, n); const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
@@ -5495,7 +5617,7 @@ function decorate(key, noTree, tower) {
   const F = clamp(W.courseLen / 300, 1, 3.2); // scenery density keeps up with longer stages
   if (tower) TOWER.build();
   if (key === 'lab') LABHALL.build();   // the Prism Lab is an interior: its own hall instead of floating scenery
-  if (key === 'mono' && noTree && G.fullCol) colourRoad();
+  if (key === 'mono' && noTree && G.fullCol) GARDEN.build();
   if (key === 'mono' && !tower) {
     const mono = true;
     const ringMat = mono ? restoreMat(new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.6 }), '#aaaaaa', '#ffffff') : new THREE.MeshStandardMaterial({ color: col('#f4f6fa'), roughness: 0.25, metalness: 0.6 });
@@ -6744,7 +6866,8 @@ function loadStage(i) {
   if (typeof CINE !== 'undefined') CINE.abort();
   const st = STAGES[i], T = THEMES[st.theme];
   G.fullCol = !!((SAVE.best[STAGES.length - 1] && !G.theater && !G.preTest) || G.finaleRun);   // once Grisaille is beaten, every colour is back everywhere
-  if (i === 0) st.lenses = G.fullCol ? [0, 1, 2, 3] : [];
+  if (i === 0) { st.lenses = G.fullCol ? [0, 1, 2, 3] : []; nameFirst(G.fullCol); }
+  if (T.key === 'mono') Object.assign(T, i === 0 && G.fullCol ? { skyTop: '#1f74e6', skyHor: '#d2eaff', skyBot: '#7db4ee', fog: '#bcdcfa', fogN: 170, fogF: 760, side: '#e6dcc6', top: '#efe9dc', hemiS: '#e2efff', hemiG: '#9ab896', hemiI: 0.38, clouds: 1.0, sun: '#fff6e2', trim: '#ffcf5a', bloom: 0.45, bloomTh: 1.6, expo: 0.9 } : { skyTop: '#5fb0ff', skyHor: '#ffe0ef', skyBot: '#8a78d8', fog: '#f3d9ea', fogN: 60, fogF: 330, side: '#d3c9ea', top: '#ece4f7', hemiS: '#ffe9f6', hemiG: '#8a82b8', hemiI: 0.5, clouds: 0.7, sun: '#fff1d8', trim: '#ffffff', bloom: 0.95, bloomTh: 1.2, expo: 1.0 });
   if (T.key === 'aqua') { if (G.fullCol) DECO_WIN.value.setRGB(1.0, 0.62, 0.3); else DECO_WIN.value.setRGB(0.85, 0.85, 0.88); }
   if (T.key === 'aqua') Object.assign(T, G.fullCol ? { skyHor: '#ff9a74', skyBot: '#2a2140', sun: '#ffb27c', hemiS: '#ffcaa8', fog: '#b7808e', cloud: '#ffc1a3', motes: '#ffd9b8', trim: '#ffb47a' } : { skyHor: '#e6e8ee', skyBot: '#262a40', sun: '#f4f4f6', hemiS: '#e4e6ea', fog: '#b4b6be', cloud: '#eeeeee', motes: '#ffffff', trim: '#e8e8e8' });
   if (T.key === 'lab') { T.trim = G.fullCol ? '#6fd3ff' : '#ff4a40'; Object.assign(T, G.fullCol ? { side: '#b8d6ff', top: '#e2f1ff', fog: '#cfe6ff', hemiS: '#dcefff', hemiG: '#7f9ac0' } : { side: '#d4d4d6', top: '#e9e9ea', fog: '#e6e6e8', hemiS: '#f0f0f0', hemiG: '#989898' }); }
@@ -6808,7 +6931,7 @@ function startStage(i) {
 }
 function showIntro(i) {
   const st = STAGES[i], el = $('#intro'), li = st.core;
-  const nl = li !== undefined ? ''
+  const nl = li !== undefined || i === 0 ? ''
     : `<div class="newlens">${st.goalText}</div>`;
   el.innerHTML = `<div class="n">STAGE ${i + 1}</div><div class="t">${st.name}</div><div class="e">${st.en}</div>${nl}`;
   el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
@@ -6816,7 +6939,7 @@ function showIntro(i) {
 }
 function toTitle() {
   hideScreens(); $('#hud').hidden = true; if (document.pointerLockElement) document.exitPointerLock();
-  G.state = 'title'; AU.rail(false); MUSIC.stop(); refreshPre();
+  G.state = 'title'; AU.rail(false); MUSIC.stop(); refreshPre(); G.lens = -1; LU.forEach(u => { u.on.value = 0; u.prev.value = 0; }); GU.waveR.value = 1e4; updateLensBar();
   if (!W || G.stage === 5) loadStage(0);
   refreshTitle(); $('#title').hidden = false;
 }
@@ -7207,7 +7330,8 @@ function frame(now) {
 /* ================= UI WIRING ================= */
 $('#bStart').onclick = () => startStage(Math.min(SAVE.unlocked, STAGES.length) - 1);
 $('#bSelect').onclick = () => { refreshTitle(); $('#title').hidden = true; $('#stageSel').hidden = false; };
-function refreshPre() { const b = $('#bPre'); b.hidden = !SAVE.best[STAGES.length - 1]; if (b.hidden) G.preTest = false; else G.preTest = !!SAVE.pre; b.textContent = '撃破前の世界 ' + (G.preTest ? 'ON' : 'OFF'); }
+function refreshPre() { const b = $('#bPre'); b.hidden = !SAVE.best[STAGES.length - 1]; if (b.hidden) G.preTest = false; else G.preTest = !!SAVE.pre; b.textContent = 'クリア前の世界 ' + (G.preTest ? 'ON' : 'OFF'); nameFirst(!b.hidden && !G.preTest); }
+function nameFirst(col) { STAGES[0].name = col ? '色づいた世界' : '色を失った世界'; STAGES[0].en = col ? 'THE COLORFUL' : 'THE COLORLESS'; }
 $('#bPre').onclick = () => { SAVE.pre = !SAVE.pre; writeSave(); refreshPre(); };
 refreshPre();
 $('#bMovies').onclick = () => { refreshMovies(); $('#title').hidden = true; $('#movies').hidden = false; };
