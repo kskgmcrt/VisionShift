@@ -179,6 +179,28 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 #ending .h2{font-size:clamp(24px,4.6vw,42px)}
 #ending p{font:500 15px/1.9 var(--f-body);color:var(--dim);margin-top:14px}
 
+/* lists scroll by touch (everything else on the page refuses touch gestures), and on a phone held sideways they fit without scrolling */
+#stageSel,#stageSel *,#movies,#movies *{touch-action:pan-y}
+#movieList{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+@media (max-height:520px){
+  #stageSel.screen,#movies.screen{align-items:flex-start;padding-top:calc(env(safe-area-inset-top,0px) + 8px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8px)}
+  #stageSel .panel,#movies .panel{width:min(900px,100%);padding:10px 14px;border-radius:16px}
+  #stageSel .eyebrow,#movies .eyebrow{display:none}
+  #stageSel .h2,#movies .h2{font-size:16px}
+  .stages{grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+  .stage-card{padding:8px 10px;gap:4px;border-radius:10px}
+  .stage-card span{font-size:13px}.stage-card b,.stage-card small{font-size:9.5px}
+  #movieList{max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;padding-right:0}
+  .mv-group{padding:6px 8px;border-radius:10px}
+  .mv-head{margin-bottom:4px;gap:6px}.mv-head span{font-size:12px}.mv-head b{font-size:9px}
+  .mv-row{grid-template-columns:1fr 1fr;gap:4px}
+  .mv-row .stage-card{padding:6px 7px}.mv-row .stage-card span{font-size:11.5px;line-height:1.2}.mv-row .stage-card b,.mv-row .stage-card small{display:none}
+  #stageSel .btns,#movies .btns{margin-top:8px}#stageSel .btn,#movies .btn{padding:7px 16px;font-size:13px}
+}
+@media (max-width:520px){
+  .stages{grid-template-columns:1fr 1fr;gap:8px}.stage-card{padding:10px}
+  #movieList{max-height:60vh}.mv-row{grid-template-columns:1fr 1fr}
+}
 #loading{position:absolute;inset:0;display:grid;place-items:center;background:var(--ink);font:700 12px var(--f-num);letter-spacing:.4em;color:var(--dim);z-index:50}
 #loading.err{letter-spacing:.05em;padding:24px;text-align:center;line-height:1.7}
 @media (max-width:640px){
