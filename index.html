@@ -179,6 +179,8 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
 #ending .h2{font-size:clamp(24px,4.6vw,42px)}
 #ending p{font:500 15px/1.9 var(--f-body);color:var(--dim);margin-top:14px}
 
+.stage-card span,.mv-head span{word-break:keep-all;line-break:strict}
+.mv-head{flex-wrap:wrap}
 /* lists scroll by touch (everything else on the page refuses touch gestures), and on a phone held sideways they fit without scrolling */
 #stageSel,#stageSel *,#movies,#movies *{touch-action:pan-y}
 #movieList{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
@@ -194,7 +196,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
   .mv-group{padding:6px 8px;border-radius:10px}
   .mv-head{margin-bottom:4px;gap:6px}.mv-head span{font-size:12px}.mv-head b{font-size:9px}
   .mv-row{grid-template-columns:1fr 1fr;gap:4px}
-  .mv-row .stage-card{padding:6px 7px}.mv-row .stage-card span{font-size:11.5px;line-height:1.2}.mv-row .stage-card b,.mv-row .stage-card small{display:none}
+  .mv-row .stage-card{padding:6px 6px}.mv-row .stage-card span{font-size:11px;line-height:1.25}.mv-row .stage-card b,.mv-row .stage-card small{display:none}
   #stageSel .btns,#movies .btns{margin-top:8px}#stageSel .btn,#movies .btn{padding:7px 16px;font-size:13px}
 }
 @media (max-width:520px){
@@ -6987,13 +6989,15 @@ function toTitle() {
   if (!W || G.stage === 5) loadStage(0);
   refreshTitle(); $('#title').hidden = false;
 }
+// stage names only wrap between their two halves
+function wbrName(s) { return s.replace(/^(色を失った|色づいた|プリズム|水没都市|巨大植物|電脳都市)/, '$1<wbr>'); }
 function refreshTitle() {
   const n = Math.min(SAVE.unlocked, STAGES.length);
   $('#bStart').textContent = n > 1 ? `▶ CONTINUE · STAGE ${n}` : '▶ START';
   $('#stageList').innerHTML = STAGES.map((s, i) => {
     const best = SAVE.best[i]; const lock = i + 1 > n; if (lock) return '';   // a stage appears in the list once the one before it is cleared
     const dots = (s.lenses.length ? s.lenses : [-1]).map(l => `<i style="background:${l < 0 ? '#8a8a8a' : LENS_HEX[l]}"></i>`).join('');
-    return `<button class="stage-card" data-s="${i}" ${lock ? 'disabled' : ''}><b>STAGE ${i + 1}</b><span>${s.name}</span><div class="dots">${dots}</div><small>${lock ? 'LOCKED' : best ? `BEST ${fmtTime(best.time)} · RANK ${best.rank}` : 'NEW'}</small></button>`;
+    return `<button class="stage-card" data-s="${i}" ${lock ? 'disabled' : ''}><b>STAGE ${i + 1}</b><span>${wbrName(s.name)}</span><div class="dots">${dots}</div><small>${lock ? 'LOCKED' : best ? `BEST ${fmtTime(best.time)} · RANK ${best.rank}` : 'NEW'}</small></button>`;
   }).join('');
   $('#stageList').querySelectorAll('.stage-card').forEach(b => b.onclick = () => startStage(+b.dataset.s));
 }
@@ -7003,13 +7007,13 @@ STAGES.forEach((st, i) => {
   const last = i === STAGES.length - 1;
   MOVIES.push({ key: ['opening', 'start1', 'start2', 'start3', 'start4', 'start5'][i], st: i, kind: 'start', t: 'はじまり' });
   if (st.core !== undefined) MOVIES.push({ key: 'core' + i, st: i, kind: 'core', t: `${LENS_JP[st.core]}が戻る` });
-  if (last) { MOVIES.push({ key: 'bossStart', st: i, kind: 'boss', t: '対決' }); MOVIES.push({ key: 'bossEnd', st: i, kind: 'bossEnd', t: '決着とエンディング' }); }
-  else MOVIES.push({ key: STORY.endScene(i), st: i, kind: 'end', t: 'ゴールのあと' });
+  if (last) { MOVIES.push({ key: 'bossStart', st: i, kind: 'boss', t: '対決' }); MOVIES.push({ key: 'bossEnd', st: i, kind: 'bossEnd', t: '決着と<wbr>エンディング' }); }
+  else MOVIES.push({ key: STORY.endScene(i), st: i, kind: 'end', t: 'ゴールの後' });
 });
 const movieSeen = (m) => !!((SAVE.seen && SAVE.seen[m.key]) || SAVE.best[m.st]);
 function refreshMovies() {
   const groups = STAGES.map((st, i) => ({ st, i, list: MOVIES.filter(m => m.st === i && movieSeen(m)) })).filter(x => x.list.length);
-  $('#movieList').innerHTML = groups.length ? groups.map(x => `<section class="mv-group"><div class="mv-head"><b>STAGE ${x.i + 1}</b><span>${x.st.name}</span></div><div class="mv-row">${
+  $('#movieList').innerHTML = groups.length ? groups.map(x => `<section class="mv-group"><div class="mv-head"><b>STAGE ${x.i + 1}</b><span>${wbrName(x.st.name)}</span></div><div class="mv-row">${
       x.list.map(m => `<button class="stage-card" data-m="${MOVIES.indexOf(m)}"><span>▶ ${m.t}</span></button>`).join('')}</div></section>`).join('')
     : '<p style="color:var(--dim);margin:0">まだ見たムービーはありません。ステージを進めると、ここから見直せます。</p>';
   $('#movieList').querySelectorAll('.stage-card').forEach(b => b.onclick = () => playMovie(MOVIES[+b.dataset.m]));
